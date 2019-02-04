@@ -23,7 +23,7 @@ import com.liferay.util.ant.ExpandTask;
 public class WabProcessorTask extends WabProcessor {
 
 	public WabProcessorTask(ClassLoader classLoader, File file, Map<String, String[]> parameters) {
-		super(classLoader, file, parameters);
+		super(file, parameters);
 	}
 
 	@Override
@@ -33,29 +33,8 @@ public class WabProcessorTask extends WabProcessor {
 		AutoDeploymentContext autoDeploymentContext = buildAutoDeploymentContext(webContextpath);
 		
 		try {
-			WebDeployer baseDeployer = new WebDeployer();
-			baseDeployer.setAppServerType(ServerDetector.TOMCAT_ID);
-			baseDeployer.setBaseDir(PropsUtil.get(PropsKeys.AUTO_DEPLOY_DEPLOY_DIR));
+			WebDeployer baseDeployer = setupBaseDeployer();
 
-			String PREFIX = "C:\\liferay-ce-portal-7.0-ga7\\tomcat-8.0.32\\webapps\\ROOT\\WEB-INF\\tld\\";
-			baseDeployer.setAuiTaglibDTD(PREFIX+"liferay-aui.tld");
-			baseDeployer.setPortletTaglibDTD("liferay-portlet_2_0.tld");
-			baseDeployer.setPortletExtTaglibDTD("liferay-portlet-ext.tld");
-			baseDeployer.setSecurityTaglibDTD("liferay-security.tld");
-			baseDeployer.setThemeTaglibDTD("liferay-theme.tld");
-			baseDeployer.setUiTaglibDTD("liferay-ui.tld");
-			baseDeployer.setUtilTaglibDTD("liferay-util.tld");
-			
-			List<String> jars = new ArrayList<>();
-
-			baseDeployer.addExtJar(jars, "ext-util-bridges.jar");
-			baseDeployer.addExtJar(jars, "ext-util-java.jar");
-			baseDeployer.addExtJar(jars, "ext-util-taglib.jar");
-			baseDeployer.addRequiredJar(jars, "util-bridges.jar");
-			baseDeployer.addRequiredJar(jars, "util-java.jar");
-			baseDeployer.addRequiredJar(jars, "util-taglib.jar");
-			baseDeployer.setJars(jars);
-			
 			//baseDeployer.deployFile(autoDeploymentContext);
 			{
 				File srcFile = autoDeploymentContext.getFile();
@@ -73,13 +52,13 @@ public class WabProcessorTask extends WabProcessor {
 				
 				//more stuff here for displayname
 				
-				String deployDir = null;
+				String deployFilename = null;
 
 				if (Validator.isNotNull(displayName)) {
-					deployDir = displayName + ".war";
+					deployFilename = displayName + ".war";
 				}
 				else {
-					deployDir = srcFile.getName();
+					deployFilename = srcFile.getName();
 					displayName = baseDeployer.getDisplayName(srcFile);
 				}
 				
@@ -92,16 +71,16 @@ public class WabProcessorTask extends WabProcessor {
 				File mergeDirFile = new File("/merge/" + srcFile.getName());
 
 				String destDir = autoDeploymentContext.getDestDir();
-				File deployDirFile = new File(destDir + "/" + deployDir);
+				File deployDirFile = new File(destDir + "/" + deployFilename);
 				
 				baseDeployer.deployDirectory(destinationDir, mergeDirFile, deployDirFile, displayName, false, pluginPackage);
 
 				System.out.println("CHECK: "+destinationDir);
 				
-				File deployDir1 = new File("deploys");
+				File deployDir = new File("deploys");
 				//DeleteTask.deleteDirectory(deployDir1);
-				deployDir1.mkdirs();
-				FileUtil.move(destinationDir, deployDir1);
+				deployDir.mkdirs();
+				FileUtil.move(destinationDir, deployDir);
 				//DeleteTask.deleteDirectory(tempDir);
 			}
 				
@@ -126,5 +105,41 @@ public class WabProcessorTask extends WabProcessor {
 		*/
 		File deployDir = new File("deploys");
 		return deployDir;
+	}
+
+	private WebDeployer setupBaseDeployer() throws Exception {
+		WebDeployer baseDeployer = new WebDeployer();
+
+		baseDeployer.setAppServerType(ServerDetector.TOMCAT_ID);
+		baseDeployer.setBaseDir(PropsUtil.get(PropsKeys.AUTO_DEPLOY_DEPLOY_DIR));
+
+		setTlds(baseDeployer);
+		setJars(baseDeployer);
+
+		return baseDeployer;
+	}
+
+	private void setTlds(final WebDeployer baseDeployer) {
+		String PREFIX = "C:\\liferay-ce-portal-7.0-ga7\\tomcat-8.0.32\\webapps\\ROOT\\WEB-INF\\tld\\";
+
+		baseDeployer.setAuiTaglibDTD(PREFIX + "liferay-aui.tld");
+		baseDeployer.setPortletTaglibDTD("liferay-portlet_2_0.tld");
+		baseDeployer.setPortletExtTaglibDTD("liferay-portlet-ext.tld");
+		baseDeployer.setSecurityTaglibDTD("liferay-security.tld");
+		baseDeployer.setThemeTaglibDTD("liferay-theme.tld");
+		baseDeployer.setUiTaglibDTD("liferay-ui.tld");
+		baseDeployer.setUtilTaglibDTD("liferay-util.tld");
+	}
+
+	private void setJars(final WebDeployer baseDeployer) throws Exception {
+		List<String> jars = new ArrayList<>();
+
+		baseDeployer.addExtJar(jars, "ext-util-bridges.jar");
+		baseDeployer.addExtJar(jars, "ext-util-java.jar");
+		baseDeployer.addExtJar(jars, "ext-util-taglib.jar");
+		baseDeployer.addRequiredJar(jars, "util-bridges.jar");
+		baseDeployer.addRequiredJar(jars, "util-java.jar");
+		baseDeployer.addRequiredJar(jars, "util-taglib.jar");
+		baseDeployer.setJars(jars);
 	}
 }

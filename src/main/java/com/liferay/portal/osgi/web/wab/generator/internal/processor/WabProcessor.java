@@ -91,7 +91,7 @@ public class WabProcessor {
 
 	private static Logger _logger;
 	
-	public WabProcessor(ClassLoader classLoader, File file, Map<String, String[]> parameters) {
+	public WabProcessor(File file, Map<String, String[]> parameters) {
 
 		_logger = LoggerFactory.getLogger(getClass().getName());
 		_file = file;
@@ -130,8 +130,7 @@ public class WabProcessor {
 
 	private void appendProperty(Analyzer analyzer, String property, String string) {
 
-		analyzer.setProperty(
-			property, Analyzer.append(analyzer.getProperty(property), string));
+		analyzer.setProperty(property, Analyzer.append(analyzer.getProperty(property), string));
 	}
 	
 	protected File autoDeploy() {
@@ -140,7 +139,9 @@ public class WabProcessor {
 		}
 		
 		File deployDir = new File("deploys");
+
 		deployDir.mkdirs();
+
 		try (Jar jar = new Jar(_file)) {
 			jar.expand(deployDir);
 		}
@@ -151,8 +152,7 @@ public class WabProcessor {
 	}
 
 	protected AutoDeploymentContext buildAutoDeploymentContext(String context) {
-		AutoDeploymentContext autoDeploymentContext =
-			new AutoDeploymentContext();
+		AutoDeploymentContext autoDeploymentContext = new AutoDeploymentContext();
 
 		autoDeploymentContext.setContext(context);
 		autoDeploymentContext.setFile(_file);
@@ -201,16 +201,16 @@ public class WabProcessor {
 	}
 
 	protected String getWebContextPath() {
-		String webContextpath = MapUtil.getString(_parameters, "Web-ContextPath");
+		String webContextPath = MapUtil.getString(_parameters, "Web-ContextPath");
 
-		if (!webContextpath.startsWith(StringPool.SLASH)) {
-			webContextpath = StringPool.SLASH.concat(webContextpath);
+		if (!webContextPath.startsWith(StringPool.SLASH)) {
+			webContextPath = StringPool.SLASH.concat(webContextPath);
 		}
 
-		return webContextpath;
+		return webContextPath;
 	}
 
-	private void processBundleClasspath(Analyzer analyzer, Properties pluginPackageProperties) throws IOException {
+	private void processBundleClasspath(Analyzer analyzer) throws IOException {
 
 		appendProperty(analyzer, Constants.BUNDLE_CLASSPATH, "ext/WEB-INF/classes");
 
@@ -323,8 +323,8 @@ public class WabProcessor {
 
 		processPropertiesDependencies(
 			analyzer, classes, ".properties", _KNOWN_PROPERTY_KEYS);
-		processXMLDependencies(analyzer, classes, ".xml", _XPATHS_HBM);
-		processXMLDependencies(analyzer, classes, ".xml", _XPATHS_SPRING);
+		processXMLDependencies(analyzer, classes, ".xml");
+		processXMLDependencies(analyzer, classes, ".xml");
 	}
 
 	private void processDefaultServletPackages() {
@@ -354,7 +354,7 @@ public class WabProcessor {
 		Enumeration<Object> keys = properties.keys();
 
 		while (keys.hasMoreElements()) {
-			String key = (String)keys.nextElement();
+			String key = (String) keys.nextElement();
 
 			String value = properties.getProperty(key);
 
@@ -395,11 +395,8 @@ public class WabProcessor {
 		_importPackageParameters.add("!junit.*", new Attrs());
 	}
 
-	private void processFiles(Map<String, File> classPath, Analyzer analyzer)
-		throws IOException {
+	private void processFiles(Map<String, File> classPath, Analyzer analyzer) throws IOException {
 		
-		LocalDateTime start = LocalDateTime.now();
-
 		Jar jar = analyzer.getJar();
 
 		Map<String, Resource> resources = jar.getResources();
@@ -444,24 +441,18 @@ public class WabProcessor {
 				iterator.remove();
 			}
 		}
-		
-		LocalDateTime end = LocalDateTime.now();
-		System.out.println("processFiles "+Duration.between(start, end).getSeconds());
 	}
 
 	private void processImportPackageNames(Analyzer analyzer) {
-		String packageName = MapUtil.getString(
-			_parameters, Constants.IMPORT_PACKAGE);
+		String packageName = MapUtil.getString(_parameters, Constants.IMPORT_PACKAGE);
 
 		if (Validator.isNotNull(packageName)) {
 			analyzer.setProperty(Constants.IMPORT_PACKAGE, packageName);
 		}
 		else {
-			StringBundler sb = new StringBundler(
-				(_importPackageParameters.size() * 4) + 1);
+			StringBundler sb = new StringBundler((_importPackageParameters.size() * 4) + 1);
 
-			for (Entry<String, Attrs> entry :
-					_importPackageParameters.entrySet()) {
+			for (Entry<String, Attrs> entry : _importPackageParameters.entrySet()) {
 
 				String importPackageName = entry.getKey();
 				Attrs attrs = entry.getValue();
@@ -521,8 +512,7 @@ public class WabProcessor {
 				strutsPath = StringPool.SLASH.concat(strutsPath);
 			}
 
-			strutsPathElement.setText(
-				Portal.PATH_MODULE.substring(1) + _context + strutsPath);
+			strutsPathElement.setText(Portal.PATH_MODULE.substring(1) + _context + strutsPath);
 		}
 
 		formatDocument(file, document);
@@ -540,8 +530,7 @@ public class WabProcessor {
 			return;
 		}
 
-		String exportPackage = pluginPackageProperties.getProperty(
-			Constants.EXPORT_PACKAGE);
+		String exportPackage = pluginPackageProperties.getProperty(Constants.EXPORT_PACKAGE);
 
 		if (Validator.isNotNull(exportPackage)) {
 			Parameters parameters = new Parameters(exportPackage);
@@ -645,8 +634,7 @@ public class WabProcessor {
 				String pathString = entry.getPath();
 
 				if (pathString.endsWith(suffix)) {
-					processPropertiesDependencies(
-						analyzer, entry, knownPropertyKeys);
+					processPropertiesDependencies(analyzer, entry, knownPropertyKeys);
 				}
 			});
 	}
@@ -656,8 +644,7 @@ public class WabProcessor {
 			return;
 		}
 
-		List<String> requiredDeploymentContexts =
-			_pluginPackage.getRequiredDeploymentContexts();
+		List<String> requiredDeploymentContexts = _pluginPackage.getRequiredDeploymentContexts();
 
 		if (ListUtil.isEmpty(requiredDeploymentContexts)) {
 			return;
@@ -711,8 +698,7 @@ public class WabProcessor {
 		}
 	}
 
-	private void processTLDDependencies(Analyzer analyzer)
-		throws IOException {
+	private void processTLDDependencies(Analyzer analyzer) throws IOException {
 
 		File dir = new File(_pluginDir, "WEB-INF/tld");
 
@@ -721,7 +707,7 @@ public class WabProcessor {
 		}
 
 		File[] files = dir.listFiles(
-			(File file) -> {
+			file -> {
 				if (!file.isFile()) {
 					return false;
 				}
@@ -830,8 +816,7 @@ public class WabProcessor {
 		}
 	}
 
-	private void processXMLDependencies(Analyzer analyzer, Path path, String suffix, String xPathExpression)
-		throws IOException {
+	private void processXMLDependencies(Analyzer analyzer, Path path, String suffix) throws IOException {
 
 		File file = path.toFile();
 
@@ -892,7 +877,7 @@ public class WabProcessor {
 		}
 
 		processBundleVersion(analyzer);
-		processBundleClasspath(analyzer, pluginPackageProperties);
+		processBundleClasspath(analyzer);
 		processBundleSymbolicName(analyzer);
 		processExtraHeaders(analyzer);
 		processPluginPackagePropertiesExportImportPackages(pluginPackageProperties);
@@ -947,8 +932,7 @@ public class WabProcessor {
 
 		sb.append(StringPool.DASH);
 
-		Format format = FastDateFormatFactoryUtil.getSimpleDateFormat(
-			PropsValues.INDEX_DATE_FORMAT_PATTERN);
+		Format format = FastDateFormatFactoryUtil.getSimpleDateFormat(PropsValues.INDEX_DATE_FORMAT_PATTERN);
 
 		sb.append(format.format(new Date()));
 
@@ -992,13 +976,6 @@ public class WabProcessor {
 	}
 
 	private static final String[] _KNOWN_PROPERTY_KEYS = {"jdbc.driverClassName"};
-
-	private static final String _XPATHS_HBM = StringUtil.merge(
-		new String[] {
-			"//class/@name", "//id/@access", "//import/@class",
-			"//property/@type"
-		},
-		"|");
 
 	private static final String _XPATHS_HOOK = StringUtil.merge(
 		new String[] {
