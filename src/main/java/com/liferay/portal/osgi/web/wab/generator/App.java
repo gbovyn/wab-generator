@@ -24,7 +24,7 @@ public class App {
 
 		ToolDependencies.wire();
 
-		String filePath = "E:\\Git\\wab-generator\\com.liferay.hello.user.jsf.portlet-1.0-SNAPSHOT.war";
+		String filePath = "E:\\Git\\wab-generator-git\\com.liferay.hello.user.jsf.portlet-1.0-SNAPSHOT.war";
 
 		
 		File file = new File(filePath);

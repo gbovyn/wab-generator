@@ -138,7 +138,7 @@ public class WabProcessor {
 			return _file;
 		}
 		
-		File deployDir = new File("deploys");
+		File deployDir = new File("E:\\liferay71\\bundles\\deploys");
 
 		deployDir.mkdirs();
 
@@ -162,6 +162,7 @@ public class WabProcessor {
 		}
 
 		File file = new File(_file.getParentFile(), "deploy");
+		file = new File("E:\\liferay71\\bundles\\deploy");
 
 		file.mkdirs();
 

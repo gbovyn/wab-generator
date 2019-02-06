@@ -67,17 +67,20 @@ public class WabProcessorTask extends WabProcessor {
 				File destinationDir = tempDirPath.toFile();
 				
 				ExpandTask.expand(srcFile, destinationDir);
-				
-				File mergeDirFile = new File("/merge/" + srcFile.getName());
+
+				final Path mergeDir = Files.createTempDirectory("merge");
+				File mergeDirFile = Paths.get(mergeDir.toAbsolutePath().toString(), srcFile.getName()).toFile();
+
+				System.out.println("mergeDir: " + mergeDirFile.toPath().toAbsolutePath().toString());
 
 				String destDir = autoDeploymentContext.getDestDir();
 				File deployDirFile = new File(destDir + "/" + deployFilename);
 				
 				baseDeployer.deployDirectory(destinationDir, mergeDirFile, deployDirFile, displayName, false, pluginPackage);
 
-				System.out.println("CHECK: "+destinationDir);
+				System.out.println("CHECK: " + destinationDir);
 				
-				File deployDir = new File("deploys");
+				File deployDir = new File("E:\\liferay71\\bundles\\deploys");
 				//DeleteTask.deleteDirectory(deployDir1);
 				deployDir.mkdirs();
 				FileUtil.move(destinationDir, deployDir);
@@ -85,25 +88,12 @@ public class WabProcessorTask extends WabProcessor {
 			}
 				
 			baseDeployer.close();
-		} catch (Exception e1) {
+		} catch (Exception ex) {
 			// TODO Auto-generated catch block
-			e1.printStackTrace();
+			ex.printStackTrace();
 		}
-		/*
-		if (_file.isDirectory()) {
-			return _file;
-		}
-		
-		File deployDir = new File("deploys");
-		deployDir.mkdirs();
-		try (Jar jar = new Jar(_file)) {
-			jar.expand(deployDir);
-		}
-		catch (Exception e) {
-			ReflectionUtil.throwException(e);
-		}
-		*/
-		File deployDir = new File("deploys");
+
+		File deployDir = new File("E:\\liferay71\\bundles\\deploys");
 		return deployDir;
 	}
 

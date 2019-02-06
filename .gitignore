@@ -1,0 +1,8 @@
+.idea
+out
+gen
+.gradle/
+build/
+deploy/
+deploys/
+src/test/
