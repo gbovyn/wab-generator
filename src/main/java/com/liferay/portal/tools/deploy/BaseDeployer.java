@@ -197,8 +197,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
     }
 
     @Override
-    public void copyJars(File srcFile, PluginPackage pluginPackage)
-            throws Exception {
+    public void copyJars(File srcFile, PluginPackage pluginPackage) throws Exception {
 
         for (String jarFullName : jars) {
             String jarName = jarFullName.substring(
@@ -305,8 +304,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
     }
 
     @Override
-    public void copyProperties(File srcFile, PluginPackage pluginPackage)
-            throws Exception {
+    public void copyProperties(File srcFile, PluginPackage pluginPackage) throws Exception {
 
         if (PropsValues.AUTO_DEPLOY_COPY_COMMONS_LOGGING) {
             copyDependencyXml(
@@ -344,8 +342,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
     }
 
     @Override
-    public void copyTlds(File srcFile, PluginPackage pluginPackage)
-            throws Exception {
+    public void copyTlds(File srcFile, PluginPackage pluginPackage) throws Exception {
 
         if (Validator.isNotNull(auiTaglibDTD)) {
             FileUtil.copyFile(

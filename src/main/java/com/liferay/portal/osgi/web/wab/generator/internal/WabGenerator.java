@@ -30,7 +30,7 @@ public class WabGenerator implements com.liferay.portal.osgi.web.wab.generator.W
     @Override
     public File generate(ClassLoader classLoader, File file, Map<String, String[]> parameters) throws IOException {
 
-        WabProcessor wabProcessor = new WabProcessor(classLoader, file, parameters);
+        WabProcessor wabProcessor = new WabProcessor(file, parameters);
 
         return wabProcessor.getProcessedFile();
     }

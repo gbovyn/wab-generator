@@ -60,30 +60,29 @@ public class WabProcessor {
 
     private static final Log _log = LogFactoryUtil.getLog(WabProcessor.class);
 
-    private static final Map<String, String> _xsds =
-            new ConcurrentHashMap<String, String>() {
-                {
-                    put("aop", "http://www.springframework.org/schema/aop");
-                    put("beans", "http://www.springframework.org/schema/beans");
-                    put("blueprint", "http://www.osgi.org/xmlns/blueprint/v1.0.0");
-                    put("cdi-beans", "http://xmlns.jcp.org/xml/ns/javaee");
-                    put("context", "http://www.springframework.org/schema/context");
-                    put("gemini-blueprint", "http://www.eclipse.org/gemini/blueprint/schema/blueprint");
-                    put("j2ee", "http://java.sun.com/xml/ns/j2ee");
-                    put("javaee", "http://java.sun.com/xml/ns/javaee");
-                    put("jee", "http://www.springframework.org/schema/jee");
-                    put("jms", "http://www.springframework.org/schema/jms");
-                    put("lang", "http://www.springframework.org/schema/lang");
-                    put("osgi", "http://www.springframework.org/schema/osgi");
-                    put("osgi-compendium", "http://www.springframework.org/schema/osgi-compendium");
-                    put("portlet2", "http://java.sun.com/xml/ns/portlet/portlet-app_2_0.xsd");
-                    put("tool", "http://www.springframework.org/schema/tool");
-                    put("tx", "http://www.springframework.org/schema/tx");
-                    put("util", "http://www.springframework.org/schema/util");
-                    put("webflow-config", "http://www.springframework.org/schema/webflow-config");
-                    put("xsl", "http://www.w3.org/1999/XSL/Transform");
-                }
-            };
+    private static final Map<String, String> _xsds = new ConcurrentHashMap<String, String>() {
+        {
+            put("aop", "http://www.springframework.org/schema/aop");
+            put("beans", "http://www.springframework.org/schema/beans");
+            put("blueprint", "http://www.osgi.org/xmlns/blueprint/v1.0.0");
+            put("cdi-beans", "http://xmlns.jcp.org/xml/ns/javaee");
+            put("context", "http://www.springframework.org/schema/context");
+            put("gemini-blueprint", "http://www.eclipse.org/gemini/blueprint/schema/blueprint");
+            put("j2ee", "http://java.sun.com/xml/ns/j2ee");
+            put("javaee", "http://java.sun.com/xml/ns/javaee");
+            put("jee", "http://www.springframework.org/schema/jee");
+            put("jms", "http://www.springframework.org/schema/jms");
+            put("lang", "http://www.springframework.org/schema/lang");
+            put("osgi", "http://www.springframework.org/schema/osgi");
+            put("osgi-compendium", "http://www.springframework.org/schema/osgi-compendium");
+            put("portlet2", "http://java.sun.com/xml/ns/portlet/portlet-app_2_0.xsd");
+            put("tool", "http://www.springframework.org/schema/tool");
+            put("tx", "http://www.springframework.org/schema/tx");
+            put("util", "http://www.springframework.org/schema/util");
+            put("webflow-config", "http://www.springframework.org/schema/webflow-config");
+            put("xsl", "http://www.w3.org/1999/XSL/Transform");
+        }
+    };
     private final Parameters _exportPackageParameters = new Parameters();
     private final File _file;
     private final Set<String> _ignoredResourcePaths = SetUtil.fromArray(PropsValues.MODULE_FRAMEWORK_WEB_GENERATOR_EXCLUDED_PATHS);
@@ -95,7 +94,7 @@ public class WabProcessor {
     private PluginPackage _pluginPackage;
     private String _servicePackageName;
 
-    public WabProcessor(ClassLoader classLoader, File file, Map<String, String[]> parameters) {
+    public WabProcessor(File file, Map<String, String[]> parameters) {
 
         ToolDependencies.wire();
 
@@ -178,15 +177,15 @@ public class WabProcessor {
     }
 
     private void setTlds(final BaseDeployer baseDeployer) {
-        String PREFIX = "E:\\liferay71\\bundles\\tomcat-9.0.6\\webapps\\ROOT\\WEB-INF\\tld\\";
+        String tldFolderPath = MapUtil.getString(this._parameters, "TOMCAT_DIR") + "/webapps/ROOT/WEB-INF/tld/";
 
-        baseDeployer.setAuiTaglibDTD(PREFIX + "liferay-aui.tld");
-        baseDeployer.setPortletTaglibDTD(PREFIX + "liferay-portlet_2_0.tld");
-        baseDeployer.setPortletExtTaglibDTD(PREFIX + "liferay-portlet-ext.tld");
-        baseDeployer.setSecurityTaglibDTD(PREFIX + "liferay-security.tld");
-        baseDeployer.setThemeTaglibDTD(PREFIX + "liferay-theme.tld");
-        baseDeployer.setUiTaglibDTD(PREFIX + "liferay-ui.tld");
-        baseDeployer.setUtilTaglibDTD(PREFIX + "liferay-util.tld");
+        baseDeployer.setAuiTaglibDTD(tldFolderPath + "liferay-aui.tld");
+        baseDeployer.setPortletTaglibDTD(tldFolderPath + "liferay-portlet_2_0.tld");
+        baseDeployer.setPortletExtTaglibDTD(tldFolderPath + "liferay-portlet-ext.tld");
+        baseDeployer.setSecurityTaglibDTD(tldFolderPath + "liferay-security.tld");
+        baseDeployer.setThemeTaglibDTD(tldFolderPath + "liferay-theme.tld");
+        baseDeployer.setUiTaglibDTD(tldFolderPath + "liferay-ui.tld");
+        baseDeployer.setUtilTaglibDTD(tldFolderPath + "liferay-util.tld");
     }
 
     private void setJars(final BaseDeployer baseDeployer) throws Exception {
@@ -349,8 +348,7 @@ public class WabProcessor {
                 });
     }
 
-    private void processBundleClasspath(Analyzer analyzer, Properties pluginPackageProperties)
-            throws IOException {
+    private void processBundleClasspath(Analyzer analyzer, Properties pluginPackageProperties) throws IOException {
 
         appendProperty(analyzer, Constants.BUNDLE_CLASSPATH, "ext/WEB-INF/classes");
 
@@ -656,8 +654,7 @@ public class WabProcessor {
         processImportPackageNames(analyzer);
     }
 
-    private void processPluginPackagePropertiesExportImportPackages(
-            Properties pluginPackageProperties) {
+    private void processPluginPackagePropertiesExportImportPackages(Properties pluginPackageProperties) {
 
         if (pluginPackageProperties == null) {
             return;
@@ -832,8 +829,7 @@ public class WabProcessor {
         }
     }
 
-    private void processTLDDependencies(Analyzer analyzer)
-            throws IOException {
+    private void processTLDDependencies(Analyzer analyzer) throws IOException {
 
         File dir = new File(_pluginDir, "WEB-INF/tld");
 
@@ -867,8 +863,7 @@ public class WabProcessor {
         }
     }
 
-    private void processWebXML(
-            Element element, List<Element> initParamElements, Class<?> clazz) {
+    private void processWebXML(Element element, List<Element> initParamElements, Class<?> clazz) {
 
         if (element == null) {
             return;
@@ -925,8 +920,7 @@ public class WabProcessor {
         formatDocument(file, document);
     }
 
-    private void processXMLDependencies(
-            Analyzer analyzer, File file, String xPathExpression) {
+    private void processXMLDependencies(Analyzer analyzer, File file, String xPathExpression) {
 
         if (!file.exists()) {
             return;
@@ -953,8 +947,7 @@ public class WabProcessor {
         }
     }
 
-    private void processXMLDependencies(Analyzer analyzer, Path path, String suffix, String xPathExpression)
-            throws IOException {
+    private void processXMLDependencies(Analyzer analyzer, Path path, String suffix, String xPathExpression) throws IOException {
 
         File file = path.toFile();
 
@@ -976,8 +969,7 @@ public class WabProcessor {
                 });
     }
 
-    private void processXMLDependencies(
-            Analyzer analyzer, String fileName, String xPathExpression) {
+    private void processXMLDependencies(Analyzer analyzer, String fileName, String xPathExpression) {
 
         File file = new File(_pluginDir, fileName);
 

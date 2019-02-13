@@ -19,10 +19,12 @@ public class Test {
         final File file = new File("E:\\Git\\liferay-springmvc-sample\\build\\libs\\liferay-springmvc-sample.war");
         final String fileName = file.getName();
         final String bundleSymbolicName = FilenameUtils.removeExtension(fileName);
+        String[] tomcatDir = { "E:/liferay71/bundles/tomcat-9.0.6/" };
 
         final Map<String, String[]> parameters = new HashMap<>();
         parameters.put("Bundle-SymbolicName", new String[] { bundleSymbolicName });
         parameters.put("Web-ContextPath", new String[] { StringPool.SLASH + bundleSymbolicName });
+        parameters.put("TOMCAT_DIR", tomcatDir);
 
         new WabGenerator().generate(Test.class.getClassLoader(), file, parameters);
     }
