@@ -64,63 +64,31 @@ import java.util.zip.ZipFile;
 public class BaseDeployer implements AutoDeployer, Deployer {
 
     private static final String _PORTAL_CLASS_LOADER = "com.liferay.support.tomcat.loader.PortalClassLoader";
-    protected final Set<Path> tempDirPaths = new HashSet<>();
+    private final Set<Path> tempDirPaths = new HashSet<>();
     private final List<DeploymentExtension> _deploymentExtensions = new ArrayList<>();
-    protected String appServerType;
-    protected String auiTaglibDTD;
-    protected String baseDir;
-    protected String destDir;
-    protected String filePattern;
-    protected List<String> jars;
-    protected String jbossPrefix;
-    protected String portletExtTaglibDTD;
-    protected String portletTaglibDTD;
-    protected String securityTaglibDTD;
-    protected String themeTaglibDTD;
-    protected String tomcatLibDir;
-    protected String uiTaglibDTD;
-    protected boolean unpackWar;
-    protected String utilTaglibDTD;
-    protected List<String> wars;
-    protected String wildflyPrefix;
+    private String appServerType;
+    private String auiTaglibDTD;
+    private String baseDir;
+    private String destDir;
+    private String filePattern;
+    private List<String> jars;
+    private String jbossPrefix;
+    private String portletExtTaglibDTD;
+    private String portletTaglibDTD;
+    private String securityTaglibDTD;
+    private String themeTaglibDTD;
+    private String tomcatLibDir;
+    private String uiTaglibDTD;
+    private boolean unpackWar;
+    private String utilTaglibDTD;
+    private List<String> wars;
+    private String wildflyPrefix;
 
     public BaseDeployer() {
         ServiceLoader<DeploymentExtension> serviceLoader = ServiceLoader.load(DeploymentExtension.class, BaseDeployer.class.getClassLoader());
 
         for (DeploymentExtension deploymentExtension : serviceLoader) {
             _deploymentExtensions.add(deploymentExtension);
-        }
-    }
-
-    public BaseDeployer(List<String> wars, List<String> jars) {
-        this();
-
-        baseDir = System.getProperty("deployer.base.dir");
-        destDir = System.getProperty("deployer.dest.dir");
-        appServerType = System.getProperty("deployer.app.server.type");
-        auiTaglibDTD = System.getProperty("deployer.aui.taglib.dtd");
-        portletTaglibDTD = System.getProperty("deployer.portlet.taglib.dtd");
-        portletExtTaglibDTD = System.getProperty("deployer.portlet-ext.taglib.dtd");
-        securityTaglibDTD = System.getProperty("deployer.security.taglib.dtd");
-        themeTaglibDTD = System.getProperty("deployer.theme.taglib.dtd");
-        uiTaglibDTD = System.getProperty("deployer.ui.taglib.dtd");
-        utilTaglibDTD = System.getProperty("deployer.util.taglib.dtd");
-        unpackWar = GetterUtil.getBoolean(System.getProperty("deployer.unpack.war"), true);
-        filePattern = System.getProperty("deployer.file.pattern");
-        jbossPrefix = GetterUtil.getString(System.getProperty("deployer.jboss.prefix"));
-        tomcatLibDir = System.getProperty("deployer.tomcat.lib.dir");
-        wildflyPrefix = GetterUtil.getString(System.getProperty("deployer.wildfly.prefix"));
-        this.wars = wars;
-        this.jars = jars;
-
-        checkArguments();
-
-        String context = System.getProperty("deployer.context");
-
-        try {
-            deploy(context);
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 
@@ -449,21 +417,16 @@ public class BaseDeployer implements AutoDeployer, Deployer {
     }
 
     @Override
-    public void copyXmls(
-            File srcFile, String displayName, PluginPackage pluginPackage)
-            throws Exception {
+    public void copyXmls(File srcFile, String displayName, PluginPackage pluginPackage) throws Exception {
 
-        if (appServerType.equals(ServerDetector.JBOSS_ID) ||
-                appServerType.equals(ServerDetector.WILDFLY_ID)) {
+        if (appServerType.equals(ServerDetector.JBOSS_ID) || appServerType.equals(ServerDetector.WILDFLY_ID)) {
 
             File file = new File(PropsValues.LIFERAY_WEB_PORTAL_DIR);
 
-            copyDependencyXml(
-                    "jboss-all.xml", srcFile + "/WEB-INF",
+            copyDependencyXml("jboss-all.xml", srcFile + "/WEB-INF",
                     Collections.singletonMap("root_war", file.getName()), true);
 
-            copyDependencyXml(
-                    "jboss-deployment-structure.xml", srcFile + "/WEB-INF");
+            copyDependencyXml("jboss-deployment-structure.xml", srcFile + "/WEB-INF");
         }
 
         for (DeploymentExtension deploymentExtension : _deploymentExtensions) {
@@ -474,53 +437,9 @@ public class BaseDeployer implements AutoDeployer, Deployer {
             }
         }
 
+        copyTomcatContextXml(srcFile);
+
         copyDependencyXml("web.xml", srcFile + "/WEB-INF");
-    }
-
-    public void deploy(String context) throws Exception {
-        try {
-            File baseDirFile = new File(baseDir);
-
-            File[] files = baseDirFile.listFiles();
-
-            if (files == null) {
-                return;
-            }
-
-            files = FileUtil.sortFiles(files);
-
-            for (File srcFile : files) {
-                String fileName = StringUtil.toLowerCase(srcFile.getName());
-
-                boolean deploy = false;
-
-                if (fileName.endsWith(".war") || fileName.endsWith(".zip")) {
-                    deploy = true;
-
-                    if (!wars.isEmpty()) {
-                        if (!wars.contains(srcFile.getName())) {
-                            deploy = false;
-                        }
-                    } else if (Validator.isNotNull(filePattern)) {
-                        if (!StringUtil.matchesIgnoreCase(fileName, filePattern)) {
-
-                            deploy = false;
-                        }
-                    }
-                }
-
-                if (deploy) {
-                    AutoDeploymentContext autoDeploymentContext = new AutoDeploymentContext();
-
-                    autoDeploymentContext.setContext(context);
-                    autoDeploymentContext.setFile(srcFile);
-
-                    deployFile(autoDeploymentContext);
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     public void deployDirectory(
@@ -544,8 +463,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
 
         updateWebXml(webXml, srcFile, displayName, pluginPackage);
 
-        File extLibGlobalDir = new File(
-                srcFile.getAbsolutePath() + "/WEB-INF/ext-lib/global");
+        File extLibGlobalDir = new File(srcFile.getAbsolutePath() + "/WEB-INF/ext-lib/global");
 
         if (extLibGlobalDir.exists()) {
             File globalLibDir = new File(PortalUtil.getGlobalLibDir());
@@ -555,8 +473,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
                     overwrite, true);
         }
 
-        File extLibPortalDir = new File(
-                srcFile.getAbsolutePath() + "/WEB-INF/ext-lib/portal");
+        File extLibPortalDir = new File(srcFile.getAbsolutePath() + "/WEB-INF/ext-lib/portal");
 
         if (extLibPortalDir.exists()) {
             File portalLibDir = new File(PortalUtil.getPortalLibDir());
@@ -570,12 +487,11 @@ public class BaseDeployer implements AutoDeployer, Deployer {
             return;
         }
 
-        updateDeployDirectory(srcFile);
+        //updateDeployDirectory(srcFile);
 
         String excludes = StringPool.BLANK;
 
-        if (appServerType.equals(ServerDetector.JBOSS_ID) ||
-                appServerType.equals(ServerDetector.WILDFLY_ID)) {
+        if (appServerType.equals(ServerDetector.JBOSS_ID) || appServerType.equals(ServerDetector.WILDFLY_ID)) {
 
             excludes += "**/WEB-INF/lib/log4j.jar,";
         } else if (appServerType.equals(ServerDetector.TOMCAT_ID)) {
@@ -713,15 +629,6 @@ public class BaseDeployer implements AutoDeployer, Deployer {
         }
     }
 
-    public void deployDirectory(
-            File srcFile, String displayName, boolean override,
-            PluginPackage pluginPackage)
-            throws Exception {
-
-        deployDirectory(
-                srcFile, null, null, displayName, override, pluginPackage);
-    }
-
     public int deployFile(AutoDeploymentContext autoDeploymentContext) throws Exception {
 
         File srcFile = autoDeploymentContext.getFile();
@@ -838,17 +745,17 @@ public class BaseDeployer implements AutoDeployer, Deployer {
             } else {
                 boolean deployed = deployFile(srcFile, mergeDirFile, deployDirFile, displayName, overwrite, pluginPackage);
 
-                if (!deployed) {
-                    String context = preliminaryContext;
-
-                    if (pluginPackage != null) {
-                        context = pluginPackage.getContext();
-                    }
-
-                    PluginPackageUtil.endPluginPackageInstallation(context);
-                } else {
-                    postDeploy(destDir, deployDir);
-                }
+//                if (!deployed) {
+//                    String context = preliminaryContext;
+//
+//                    if (pluginPackage != null) {
+//                        context = pluginPackage.getContext();
+//                    }
+//
+//                    PluginPackageUtil.endPluginPackageInstallation(context);
+//                } else {
+//                    postDeploy(destDir, deployDir);
+//                }
             }
 
             return AutoDeployer.CODE_DEFAULT;
@@ -1364,45 +1271,49 @@ public class BaseDeployer implements AutoDeployer, Deployer {
         CopyTask.copyDirectory(mergeDir, targetDir, null, null, true, false);
     }
 
-    public void postDeploy(String destDir, String deployDir) throws Exception {
-        if (appServerType.equals(ServerDetector.GLASSFISH_ID)) {
-            postDeployGlassfish(destDir, deployDir);
-        } else if (appServerType.equals(ServerDetector.JBOSS_ID)) {
-            postDeployJBoss(destDir, deployDir);
-        } else if (appServerType.equals(ServerDetector.WILDFLY_ID)) {
-            postDeployWildfly(destDir, deployDir);
-        }
+//    public void postDeploy(String destDir, String deployDir) throws Exception {
+//        switch (appServerType) {
+//            case ServerDetector.GLASSFISH_ID:
+//                postDeployGlassfish(destDir, deployDir);
+//                break;
+//            case ServerDetector.JBOSS_ID:
+//                postDeployJBoss(destDir, deployDir);
+//                break;
+//            case ServerDetector.WILDFLY_ID:
+//                postDeployWildfly(destDir, deployDir);
+//                break;
+//        }
+//
+//        for (DeploymentExtension deploymentExtension : _deploymentExtensions) {
+//            if (Objects.equals(
+//                    appServerType, deploymentExtension.getServerId())) {
+//
+//                deploymentExtension.postDeploy(destDir, deployDir);
+//            }
+//        }
+//    }
 
-        for (DeploymentExtension deploymentExtension : _deploymentExtensions) {
-            if (Objects.equals(
-                    appServerType, deploymentExtension.getServerId())) {
-
-                deploymentExtension.postDeploy(destDir, deployDir);
-            }
-        }
-    }
-
-    public void postDeployGlassfish(String destDir, String deployDir)
-            throws Exception {
-
-        FileUtil.delete(destDir + "/.autodeploystatus/" + deployDir);
-    }
-
-    public void postDeployJBoss(String destDir, String deployDir)
-            throws Exception {
-
-        FileUtil.write(
-                StringBundler.concat(destDir, "/", deployDir, ".dodeploy"),
-                StringPool.BLANK);
-    }
-
-    public void postDeployWildfly(String destDir, String deployDir)
-            throws Exception {
-
-        FileUtil.write(
-                StringBundler.concat(destDir, "/", deployDir, ".dodeploy"),
-                StringPool.BLANK);
-    }
+//    public void postDeployGlassfish(String destDir, String deployDir)
+//            throws Exception {
+//
+//        FileUtil.delete(destDir + "/.autodeploystatus/" + deployDir);
+//    }
+//
+//    public void postDeployJBoss(String destDir, String deployDir)
+//            throws Exception {
+//
+//        FileUtil.write(
+//                StringBundler.concat(destDir, "/", deployDir, ".dodeploy"),
+//                StringPool.BLANK);
+//    }
+//
+//    public void postDeployWildfly(String destDir, String deployDir)
+//            throws Exception {
+//
+//        FileUtil.write(
+//                StringBundler.concat(destDir, "/", deployDir, ".dodeploy"),
+//                StringPool.BLANK);
+//    }
 
     @Override
     public Map<String, String> processPluginPackageProperties(
@@ -1564,7 +1475,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
         return null;
     }
 
-    public void rewriteFiles(File srcDir) throws Exception {
+    private void rewriteFiles(File srcDir) {
         String[] fileNames = FileUtil.listFiles(srcDir + "/WEB-INF/");
 
         for (String fileName : fileNames) {
@@ -1600,7 +1511,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
         }
     }
 
-    public String secureWebXml(String content, boolean hasCustomServletListener, boolean securityManagerEnabled) throws Exception {
+    private String secureWebXml(String content, boolean hasCustomServletListener, boolean securityManagerEnabled) throws Exception {
 
         if (!hasCustomServletListener && !securityManagerEnabled) {
             return content;
@@ -1752,10 +1663,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
         this.wildflyPrefix = wildflyPrefix;
     }
 
-    public void updateDeployDirectory(File srcFile) throws Exception {
-    }
-
-    public String updateLiferayWebXml(
+    private String updateLiferayWebXml(
             double webXmlVersion, File srcFile, String webXmlContent)
             throws Exception {
 
