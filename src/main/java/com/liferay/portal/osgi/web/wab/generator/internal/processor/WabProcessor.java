@@ -36,6 +36,7 @@ import com.liferay.portal.kernel.xml.*;
 import com.liferay.portal.tools.ToolDependencies;
 import com.liferay.portal.tools.deploy.BaseDeployer;
 import com.liferay.portal.util.PropsValues;
+import com.liferay.util.ant.DeleteTask;
 import com.liferay.whip.util.ReflectionUtil;
 import org.apache.commons.io.FilenameUtils;
 
@@ -214,6 +215,10 @@ public class WabProcessor {
         }
 
         File file = new File(_file.getParentFile(), "deploy");
+
+        if (file.exists()) {
+            DeleteTask.deleteDirectory(file);
+        }
 
         file.mkdirs();
 
