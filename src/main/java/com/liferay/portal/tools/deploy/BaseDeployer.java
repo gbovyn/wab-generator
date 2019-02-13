@@ -594,9 +594,6 @@ public class BaseDeployer implements AutoDeployer, Deployer {
 
             excludes += "**/WEB-INF/web.xml";
 
-            System.out.println("deployDir " + deployDir);
-            System.out.println("srcFile " + srcFile);
-
             CopyTask.copyDirectory(srcFile, deployDir, StringPool.BLANK, excludes, overwrite, true);
 
             CopyTask.copyDirectory(srcFile, deployDir, "**/WEB-INF/web.xml", StringPool.BLANK, true, false);
