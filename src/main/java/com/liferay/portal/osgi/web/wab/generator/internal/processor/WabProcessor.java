@@ -37,6 +37,7 @@ import com.liferay.portal.tools.ToolDependencies;
 import com.liferay.portal.tools.deploy.BaseDeployer;
 import com.liferay.portal.util.PropsValues;
 import com.liferay.whip.util.ReflectionUtil;
+import org.apache.commons.io.FilenameUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -1058,26 +1059,19 @@ public class WabProcessor {
 
         dir.mkdirs();
 
-        StringBundler sb = new StringBundler(5);
+        String name = FilenameUtils.removeExtension(_file.getName()) + ".war";
 
-        String name = _file.getName();
+        FileUtil.copyFile(file, new File(dir, name));
+        System.out.println("WAB created: " + new File(dir, name));
 
-        sb.append(name.substring(0, name.lastIndexOf(StringPool.PERIOD)));
-
-//        sb.append(StringPool.DASH);
-//
-//        Format format = FastDateFormatFactoryUtil.getSimpleDateFormat(
-//                PropsValues.INDEX_DATE_FORMAT_PATTERN);
-//
-//        sb.append(format.format(new Date()));
-
-        sb.append(".wab.");
-
-        sb.append(FileUtil.getExtension(name));
-
-        FileUtil.copyFile(file, new File(dir, sb.toString()));
-
-        System.out.println(new File(dir, sb.toString()));
+        String deployPath = MapUtil.getString(_parameters, "DEPLOY_DIR");
+        if (!deployPath.isEmpty()) {
+            System.out.println("Deploying to " + deployPath);
+            File deployDir = new File(deployPath, name);
+            FileUtil.copyFile(file, deployDir);
+        } else {
+            System.out.println("Deploy folder not configured - manual deploy required");
+        }
     }
 
     private void _processExcludedJSPs(Analyzer analyzer) {

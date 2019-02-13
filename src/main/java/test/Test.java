@@ -20,11 +20,13 @@ public class Test {
         final String fileName = file.getName();
         final String bundleSymbolicName = FilenameUtils.removeExtension(fileName);
         String[] tomcatDir = { "E:/liferay71/bundles/tomcat-9.0.6/" };
+        String[] deployDir = { "E:/liferay71/bundles/dowab/" };
 
         final Map<String, String[]> parameters = new HashMap<>();
         parameters.put("Bundle-SymbolicName", new String[] { bundleSymbolicName });
         parameters.put("Web-ContextPath", new String[] { StringPool.SLASH + bundleSymbolicName });
         parameters.put("TOMCAT_DIR", tomcatDir);
+        parameters.put("DEPLOY_FOLDER", deployDir);
 
         new WabGenerator().generate(Test.class.getClassLoader(), file, parameters);
     }
