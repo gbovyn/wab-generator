@@ -1065,7 +1065,7 @@ public class WabProcessor {
 
         dir.mkdirs();
 
-        String name = FilenameUtils.removeExtension(_file.getName()) + ".war";
+        String name = FilenameUtils.removeExtension(_file.getName()) + ".wab";
 
         FileUtil.copyFile(file, new File(dir, name));
         System.out.println("WAB created: " + new File(dir, name));
