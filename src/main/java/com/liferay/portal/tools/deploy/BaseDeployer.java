@@ -192,16 +192,14 @@ public class BaseDeployer implements AutoDeployer, Deployer {
     @Override
     public void copyDependencyXml(String fileName, String targetDir, Map<String, String> filterMap, boolean overwrite) throws Exception {
 
-        DeployUtil.copyDependencyXml(
-                fileName, targetDir, fileName, filterMap, overwrite);
+        DeployUtil.copyDependencyXml(fileName, targetDir, fileName, filterMap, overwrite);
     }
 
     @Override
     public void copyJars(File srcFile, PluginPackage pluginPackage) throws Exception {
 
         for (String jarFullName : jars) {
-            String jarName = jarFullName.substring(
-                    jarFullName.lastIndexOf("/") + 1);
+            String jarName = jarFullName.substring(jarFullName.lastIndexOf("/") + 1);
 
             if (!FileUtil.exists(jarFullName)) {
                 DeployUtil.getResourcePath(tempDirPaths, jarName);
@@ -388,7 +386,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
         }
     }
 
-    private void copyTomcatContextXml(File targetDir) throws Exception {
+    protected void copyTomcatContextXml(File targetDir) throws Exception {
         if (!appServerType.equals(ServerDetector.TOMCAT_ID)) {
             return;
         }
@@ -435,6 +433,8 @@ public class BaseDeployer implements AutoDeployer, Deployer {
 
         copyTomcatContextXml(srcFile);
 
+        copyDependencyXml("_servlet_context_include.jsp", srcFile + "/WEB-INF/jsp");
+
         copyDependencyXml("web.xml", srcFile + "/WEB-INF");
     }
 
@@ -480,7 +480,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
             return;
         }
 
-        //updateDeployDirectory(srcFile);
+        updateDeployDirectory(srcFile);
 
         String excludes = StringPool.BLANK;
 
@@ -750,7 +750,7 @@ public class BaseDeployer implements AutoDeployer, Deployer {
         return sb.toString();
     }
 
-    private String getExtraContent(double webXmlVersion, File srcFile, String displayName) {
+    protected String getExtraContent(double webXmlVersion, File srcFile, String displayName) throws Exception {
 
         if (displayName.startsWith(StringPool.FORWARD_SLASH)) {
             displayName = displayName.substring(1);
@@ -879,9 +879,27 @@ public class BaseDeployer implements AutoDeployer, Deployer {
         return sb.toString();
     }
 
-    private String getExtraFiltersContent(double webXmlVersion, File srcFile) throws Exception {
+    protected String getExtraFiltersContent(double webXmlVersion, File srcFile) throws Exception {
 
         return getSessionFiltersContent();
+    }
+
+    protected String getIgnoreFiltersContent(File srcFile) throws Exception {
+        boolean ignoreFiltersEnabled = true;
+
+        Properties properties = getPluginPackageProperties(srcFile);
+
+        if (properties != null) {
+            ignoreFiltersEnabled = GetterUtil.getBoolean(properties.getProperty("ignore-filters-enabled"), true);
+        }
+
+        if (ignoreFiltersEnabled) {
+            String ignoreFiltersContent = FileUtil.read(DeployUtil.getResourcePath(tempDirPaths, "ignore-filters-web.xml"));
+
+            return ignoreFiltersContent;
+        }
+
+        return StringPool.BLANK;
     }
 
     private String getInvokerFilterContent() {
@@ -1104,12 +1122,52 @@ public class BaseDeployer implements AutoDeployer, Deployer {
         return null;
     }
 
+    protected String getServletContextIncludeFiltersContent(double webXmlVersion, File srcFile) throws Exception {
+
+        if (webXmlVersion < 2.4) {
+            return StringPool.BLANK;
+        }
+
+        Properties properties = getPluginPackageProperties(srcFile);
+
+        if (properties == null) {
+            return StringPool.BLANK;
+        }
+
+        if (!GetterUtil.getBoolean(properties.getProperty("servlet-context-include-filters-enabled"), true)) {
+
+            return StringPool.BLANK;
+        }
+
+        return FileUtil.read(DeployUtil.getResourcePath(tempDirPaths, "servlet-context-include-filters-web.xml"));
+    }
+
+
     private String getSessionFiltersContent() throws Exception {
-        String sessionFiltersContent = FileUtil.read(
-                DeployUtil.getResourcePath(
-                        tempDirPaths, "session-filters-web.xml"));
+        String sessionFiltersContent = FileUtil.read(DeployUtil.getResourcePath(tempDirPaths, "session-filters-web.xml"));
 
         return sessionFiltersContent;
+    }
+
+    protected String getSpeedFiltersContent(File srcFile) throws Exception {
+        boolean speedFiltersEnabled = true;
+
+        Properties properties = getPluginPackageProperties(srcFile);
+
+        if (properties != null) {
+            speedFiltersEnabled = GetterUtil.getBoolean(
+                    properties.getProperty("speed-filters-enabled"), true);
+        }
+
+        if (speedFiltersEnabled) {
+            String speedFiltersContent = FileUtil.read(
+                    DeployUtil.getResourcePath(
+                            tempDirPaths, "speed-filters-web.xml"));
+
+            return speedFiltersContent;
+        }
+
+        return StringPool.BLANK;
     }
 
     private boolean isJEEDeploymentEnabled() {
@@ -1472,6 +1530,8 @@ public class BaseDeployer implements AutoDeployer, Deployer {
     public void setWildflyPrefix(String wildflyPrefix) {
         this.wildflyPrefix = wildflyPrefix;
     }
+
+    public void updateDeployDirectory(File srcFile) throws Exception {}
 
     private String updateLiferayWebXml(double webXmlVersion, File srcFile, String webXmlContent) throws Exception {
 

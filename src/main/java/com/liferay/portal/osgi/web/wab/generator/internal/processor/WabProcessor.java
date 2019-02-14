@@ -35,6 +35,7 @@ import com.liferay.portal.kernel.util.*;
 import com.liferay.portal.kernel.xml.*;
 import com.liferay.portal.tools.ToolDependencies;
 import com.liferay.portal.tools.deploy.BaseDeployer;
+import com.liferay.portal.tools.deploy.PortletDeployer;
 import com.liferay.portal.util.PropsValues;
 import com.liferay.util.ant.DeleteTask;
 import com.liferay.whip.util.ReflectionUtil;
@@ -158,7 +159,7 @@ public class WabProcessor {
             }
 
             try {
-                BaseDeployer baseDeployer = new BaseDeployer();
+                BaseDeployer baseDeployer = new PortletDeployer();
 
                 baseDeployer.setBaseDir(parentFile.getAbsolutePath());
                 baseDeployer.setAppServerType(ServerDetector.TOMCAT_ID);
