@@ -3,12 +3,14 @@ package com.liferay.portal.osgi.web.wab.generator.internal.helper;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
-public class TimerHelper {
+public enum TimerHelper {
 
-    private final LocalDateTime globalStart;
+    timer;
 
-    public TimerHelper() {
-        globalStart = LocalDateTime.now();
+    private final LocalDateTime globalStart = LocalDateTime.now();
+
+    public void time(final String name) {
+        this.time(name, () -> {});
     }
 
     public <E extends Exception> void time(final String name, final ThrowingRunnable<E> throwingRunnable) {

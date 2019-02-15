@@ -34,7 +34,7 @@ import com.liferay.portal.kernel.servlet.PortalClassLoaderServlet;
 import com.liferay.portal.kernel.util.*;
 import com.liferay.portal.kernel.xml.*;
 import com.liferay.portal.osgi.web.wab.generator.internal.helper.DeployerHelper;
-import com.liferay.portal.osgi.web.wab.generator.internal.helper.TimerHelper;
+import static com.liferay.portal.osgi.web.wab.generator.internal.helper.TimerHelper.timer;
 import com.liferay.portal.tools.ToolDependencies;
 import com.liferay.portal.tools.deploy.BaseDeployer;
 import com.liferay.portal.util.PropsValues;
@@ -98,7 +98,7 @@ public class WabProcessor {
     private static final String PACKAGE_PATH = "package-path";
     private static final String WAB_EXT = ".wab";
     private static final String DEPLOY_DIR = "DEPLOY_DIR";
-    public static final String DEPLOY = "deploy";
+    private static final String DEPLOY = "deploy";
 
     private final Parameters _exportPackageParameters = new Parameters();
     private final File _file;
@@ -111,15 +111,11 @@ public class WabProcessor {
     private PluginPackage _pluginPackage;
     private String _servicePackageName;
 
-    private final TimerHelper timer;
-
     public WabProcessor(File file, Map<String, String[]> parameters) {
         ToolDependencies.wire();
 
         _file = file;
         _parameters = parameters;
-
-        timer = new TimerHelper();
     }
 
     public File getProcessedFile() throws IOException {
@@ -207,71 +203,69 @@ public class WabProcessor {
         return autoDeploymentContext;
     }
 
-    private File transformToOSGiBundle(Jar jar) throws IOException {
-        Builder analyzer = new Builder();
+    private File transformToOSGiBundle(final Jar jar) throws IOException {
+        try (final Builder analyzer = new Builder()) {
 
-        analyzer.setBase(_pluginDir);
-        analyzer.setJar(jar);
-        analyzer.setProperty("-jsp", "*.jsp,*.jspf");
-        analyzer.setProperty(WEB_CONTEXT_PATH, getWebContextPath());
+            analyzer.setBase(_pluginDir);
+            analyzer.setJar(jar);
+            analyzer.setProperty("-jsp", "*.jsp,*.jspf");
+            analyzer.setProperty(WEB_CONTEXT_PATH, getWebContextPath());
 
-        Set<Object> plugins = analyzer.getPlugins();
+            final Set<Object> plugins = analyzer.getPlugins();
 
-        Object dsAnnotationsPlugin = null;
+            Object dsAnnotationsPlugin = null;
 
-        for (Object plugin : plugins) {
-            if (plugin instanceof DSAnnotations) {
-                dsAnnotationsPlugin = plugin;
+            for (Object plugin : plugins) {
+                if (plugin instanceof DSAnnotations) {
+                    dsAnnotationsPlugin = plugin;
+                }
             }
-        }
 
-        if (dsAnnotationsPlugin != null) {
-            plugins.remove(dsAnnotationsPlugin);
-        }
+            if (dsAnnotationsPlugin != null) {
+                plugins.remove(dsAnnotationsPlugin);
+            }
 
-        plugins.add(new JspAnalyzerPlugin());
+            plugins.add(new JspAnalyzerPlugin());
 
-        Properties pluginPackageProperties = getPluginPackageProperties();
+            final Properties pluginPackageProperties = getPluginPackageProperties();
 
-        timer.time("processBundleVersion", () -> processBundleVersion(analyzer));
-        timer.time("processBundleClasspath", () -> processBundleClasspath(analyzer, pluginPackageProperties));
-        timer.time("processBundleSymbolicName", () -> processBundleSymbolicName(analyzer));
-        timer.time("processExtraHeaders", () -> processExtraHeaders(analyzer));
-        timer.time("processPluginPackagePropertiesExportImportPackages", () ->
-                processPluginPackagePropertiesExportImportPackages(pluginPackageProperties));
+            timer.time("processBundleVersion", () -> processBundleVersion(analyzer));
+            timer.time("processBundleClasspath", () -> processBundleClasspath(analyzer, pluginPackageProperties));
+            timer.time("processBundleSymbolicName", () -> processBundleSymbolicName(analyzer));
+            timer.time("processExtraHeaders", () -> processExtraHeaders(analyzer));
+            timer.time("processPluginPackagePropertiesExportImportPackages", () ->
+                    processPluginPackagePropertiesExportImportPackages(pluginPackageProperties));
 
-        timer.time("processBundleManifestVersion", () -> processBundleManifestVersion(analyzer));
+            timer.time("processBundleManifestVersion", () -> processBundleManifestVersion(analyzer));
 
-        timer.time("processLiferayPortletXML", this::processLiferayPortletXML);
-        timer.time("processWebXML", () -> processWebXML(WEB_INF_WEB_XML));
-        timer.time("processWebXML", () -> processWebXML(WEB_INF_LIFERAY_WEB_XML));
+            timer.time("processLiferayPortletXML", this::processLiferayPortletXML);
+            timer.time("processWebXML", () -> processWebXML(WEB_INF_WEB_XML));
+            timer.time("processWebXML", () -> processWebXML(WEB_INF_LIFERAY_WEB_XML));
 
-        timer.time("processDeclarativeReferences", () -> processDeclarativeReferences(analyzer));
+            timer.time("processDeclarativeReferences", () -> processDeclarativeReferences(analyzer));
 
-        timer.time("processExtraRequirements", this::processExtraRequirements);
+            timer.time("processExtraRequirements", this::processExtraRequirements);
 
-        timer.time("processPackageNames", () -> processPackageNames(analyzer));
+            timer.time("processPackageNames", () -> processPackageNames(analyzer));
 
-        timer.time("processRequiredDeploymentContexts", () -> processRequiredDeploymentContexts(analyzer));
+            timer.time("processRequiredDeploymentContexts", () -> processRequiredDeploymentContexts(analyzer));
 
-        timer.time("processBeans", () -> processBeans(analyzer));
+            timer.time("processBeans", () -> processBeans(analyzer));
 
-        timer.time("_processExcludedJSPs", () -> _processExcludedJSPs(analyzer));
+            timer.time("_processExcludedJSPs", () -> _processExcludedJSPs(analyzer));
 
-        analyzer.setProperties(pluginPackageProperties);
+            analyzer.setProperties(pluginPackageProperties);
 
-        try {
-            jar = analyzer.build();
+            final Jar jarWithManifest = analyzer.build();
+            timer.time("analyzer.build");
 
-            File outputFile = analyzer.getOutputFile(null);
+            final File outputFile = analyzer.getOutputFile(null);
 
-            jar.write(outputFile);
+            timer.time("jar.write", () -> jarWithManifest.write(outputFile));
 
             return outputFile;
         } catch (Exception e) {
             throw new IOException("Unable to calculate the manifest", e);
-        } finally {
-            analyzer.close();
         }
     }
 
