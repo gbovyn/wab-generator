@@ -34,12 +34,14 @@ import com.liferay.portal.kernel.servlet.PortalClassLoaderServlet;
 import com.liferay.portal.kernel.util.*;
 import com.liferay.portal.kernel.xml.*;
 import com.liferay.portal.osgi.web.wab.generator.internal.helper.DeployerHelper;
+import com.liferay.portal.osgi.web.wab.generator.internal.helper.TimerHelper;
 import com.liferay.portal.tools.ToolDependencies;
 import com.liferay.portal.tools.deploy.BaseDeployer;
 import com.liferay.portal.util.PropsValues;
 import com.liferay.util.ant.DeleteTask;
 import com.liferay.whip.util.ReflectionUtil;
 import org.apache.commons.io.FilenameUtils;
+import sun.tools.jar.resources.jar;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -47,7 +49,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.stream.Stream;
 
@@ -72,12 +76,15 @@ public class WabProcessor {
     private PluginPackage _pluginPackage;
     private String _servicePackageName;
 
-    public WabProcessor(File file, Map<String, String[]> parameters) {
+    private final TimerHelper timer;
 
+    public WabProcessor(File file, Map<String, String[]> parameters) {
         ToolDependencies.wire();
 
         _file = file;
         _parameters = parameters;
+
+        timer = new TimerHelper();
     }
 
     public File getProcessedFile() throws IOException {
@@ -191,29 +198,30 @@ public class WabProcessor {
 
         Properties pluginPackageProperties = getPluginPackageProperties();
 
-        processBundleVersion(analyzer);
-        processBundleClasspath(analyzer, pluginPackageProperties);
-        processBundleSymbolicName(analyzer);
-        processExtraHeaders(analyzer);
-        processPluginPackagePropertiesExportImportPackages(pluginPackageProperties);
+        timer.time("processBundleVersion", () -> processBundleVersion(analyzer));
+        timer.time("processBundleClasspath", () -> processBundleClasspath(analyzer, pluginPackageProperties));
+        timer.time("processBundleSymbolicName", () -> processBundleSymbolicName(analyzer));
+        timer.time("processExtraHeaders", () -> processExtraHeaders(analyzer));
+        timer.time("processPluginPackagePropertiesExportImportPackages", () ->
+                processPluginPackagePropertiesExportImportPackages(pluginPackageProperties));
 
-        processBundleManifestVersion(analyzer);
+        timer.time("processBundleManifestVersion", () -> processBundleManifestVersion(analyzer));
 
-        processLiferayPortletXML();
-        processWebXML("WEB-INF/web.xml");
-        processWebXML("WEB-INF/liferay-web.xml");
+        timer.time("processLiferayPortletXML", () -> processLiferayPortletXML());
+        timer.time("processWebXML", () -> processWebXML("WEB-INF/web.xml"));
+        timer.time("processWebXML", () -> processWebXML("WEB-INF/liferay-web.xml"));
 
-        processDeclarativeReferences(analyzer);
+        timer.time("processDeclarativeReferences", () -> processDeclarativeReferences(analyzer));
 
-        processExtraRequirements();
+        timer.time("processExtraRequirements", () -> processExtraRequirements());
 
-        processPackageNames(analyzer);
+        timer.time("processPackageNames", () -> processPackageNames(analyzer));
 
-        processRequiredDeploymentContexts(analyzer);
+        timer.time("processRequiredDeploymentContexts", () -> processRequiredDeploymentContexts(analyzer));
 
-        processBeans(analyzer);
+        timer.time("processBeans", () -> processBeans(analyzer));
 
-        _processExcludedJSPs(analyzer);
+        timer.time("_processExcludedJSPs", () -> _processExcludedJSPs(analyzer));
 
         analyzer.setProperties(pluginPackageProperties);
 
@@ -293,7 +301,7 @@ public class WabProcessor {
         analyzer.setProperty(Constants.BUNDLE_VERSION, _bundleVersion);
     }
 
-    private void processBundleClasspath(Analyzer analyzer, Properties pluginPackageProperties) throws IOException {
+    private void processBundleClasspath(Analyzer analyzer, Properties pluginPackageProperties) {
 
         appendProperty(analyzer, Constants.BUNDLE_CLASSPATH, "ext/WEB-INF/classes");
 
@@ -309,7 +317,11 @@ public class WabProcessor {
 
         Collection<File> files = classPath.values();
 
-        analyzer.setClasspath(files.toArray(new File[classPath.size()]));
+        try {
+            analyzer.setClasspath(files.toArray(new File[classPath.size()]));
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     private void processBundleSymbolicName(Analyzer analyzer) {
@@ -399,7 +411,7 @@ public class WabProcessor {
         analyzer.setProperty(Constants.BUNDLE_MANIFESTVERSION, bundleManifestVersion);
     }
 
-    private void processLiferayPortletXML() throws IOException {
+    private void processLiferayPortletXML() {
         File file = new File(_pluginDir, "WEB-INF/liferay-portlet.xml");
 
         if (!file.exists()) {
@@ -430,7 +442,7 @@ public class WabProcessor {
         formatDocument(file, document);
     }
 
-    private void processWebXML(String path) throws IOException {
+    private void processWebXML(String path) {
         File file = new File(_pluginDir, path);
 
         if (!file.exists()) {
@@ -487,7 +499,7 @@ public class WabProcessor {
         }
     }
 
-    private void processDeclarativeReferences(Analyzer analyzer) throws IOException {
+    private void processDeclarativeReferences(Analyzer analyzer) {
 
         processDefaultServletPackages();
         processTLDDependencies(analyzer);
@@ -515,7 +527,7 @@ public class WabProcessor {
         processXMLDependencies(analyzer, file, xPathExpression);
     }
 
-    private void processXMLDependencies(Analyzer analyzer, Path path, String suffix, String xPathExpression) throws IOException {
+    private void processXMLDependencies(Analyzer analyzer, Path path, String suffix, String xPathExpression) {
 
         File file = path.toFile();
 
@@ -523,7 +535,12 @@ public class WabProcessor {
             return;
         }
 
-        Stream<Path> pathStream = Files.walk(path);
+        Stream<Path> pathStream = null;
+        try {
+            pathStream = Files.walk(path);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
         Stream<File> fileStream = pathStream.map(Path::toFile);
 
@@ -563,7 +580,7 @@ public class WabProcessor {
         }
     }
 
-    private void processPropertiesDependencies(Analyzer analyzer, Path path, String suffix, String[] knownPropertyKeys) throws IOException {
+    private void processPropertiesDependencies(Analyzer analyzer, Path path, String suffix, String[] knownPropertyKeys) {
 
         File file = path.toFile();
 
@@ -571,7 +588,12 @@ public class WabProcessor {
             return;
         }
 
-        Stream<Path> pathStream = Files.walk(path);
+        Stream<Path> pathStream = null;
+        try {
+            pathStream = Files.walk(path);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
         Stream<File> fileStream = pathStream.map(Path::toFile);
 
@@ -632,7 +654,7 @@ public class WabProcessor {
         }
     }
 
-    private void processTLDDependencies(Analyzer analyzer) throws IOException {
+    private void processTLDDependencies(Analyzer analyzer) {
 
         File dir = new File(_pluginDir, "WEB-INF/tld");
 
@@ -640,8 +662,7 @@ public class WabProcessor {
             return;
         }
 
-        File[] files = dir.listFiles(
-                (File file) -> {
+        File[] files = dir.listFiles((File file) -> {
                     if (!file.isFile()) {
                         return false;
                     }
@@ -652,7 +673,12 @@ public class WabProcessor {
                 });
 
         for (File file : files) {
-            String content = FileUtil.read(file);
+            String content = null;
+            try {
+                content = FileUtil.read(file);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
 
             Matcher matcher = _tldPackagesPattern.matcher(content);
 
@@ -1010,11 +1036,11 @@ public class WabProcessor {
         analyzer.setProperty(property, Analyzer.append(analyzer.getProperty(property), string));
     }
 
-    private void formatDocument(File file, Document document) throws IOException {
+    private void formatDocument(File file, Document document) {
         try {
             FileUtil.write(file, document.formattedString("  "));
         } catch (Exception e) {
-            throw new IOException(e);
+            throw new RuntimeException(e);
         }
     }
 
