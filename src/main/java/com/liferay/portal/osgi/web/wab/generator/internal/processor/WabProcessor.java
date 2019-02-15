@@ -33,9 +33,9 @@ import com.liferay.portal.kernel.servlet.PortalClassLoaderFilter;
 import com.liferay.portal.kernel.servlet.PortalClassLoaderServlet;
 import com.liferay.portal.kernel.util.*;
 import com.liferay.portal.kernel.xml.*;
+import com.liferay.portal.osgi.web.wab.generator.internal.helper.DeployerHelper;
 import com.liferay.portal.tools.ToolDependencies;
 import com.liferay.portal.tools.deploy.BaseDeployer;
-import com.liferay.portal.tools.deploy.PortletDeployer;
 import com.liferay.portal.util.PropsValues;
 import com.liferay.util.ant.DeleteTask;
 import com.liferay.whip.util.ReflectionUtil;
@@ -48,9 +48,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static com.liferay.portal.osgi.web.wab.generator.internal.processor.Constants.*;
@@ -63,29 +61,6 @@ public class WabProcessor {
 
     private static final Log _log = LogFactoryUtil.getLog(WabProcessor.class);
 
-    private static final Map<String, String> _xsds = new ConcurrentHashMap<String, String>() {
-        {
-            put("aop", "http://www.springframework.org/schema/aop");
-            put("beans", "http://www.springframework.org/schema/beans");
-            put("blueprint", "http://www.osgi.org/xmlns/blueprint/v1.0.0");
-            put("cdi-beans", "http://xmlns.jcp.org/xml/ns/javaee");
-            put("context", "http://www.springframework.org/schema/context");
-            put("gemini-blueprint", "http://www.eclipse.org/gemini/blueprint/schema/blueprint");
-            put("j2ee", "http://java.sun.com/xml/ns/j2ee");
-            put("javaee", "http://java.sun.com/xml/ns/javaee");
-            put("jee", "http://www.springframework.org/schema/jee");
-            put("jms", "http://www.springframework.org/schema/jms");
-            put("lang", "http://www.springframework.org/schema/lang");
-            put("osgi", "http://www.springframework.org/schema/osgi");
-            put("osgi-compendium", "http://www.springframework.org/schema/osgi-compendium");
-            put("portlet2", "http://java.sun.com/xml/ns/portlet/portlet-app_2_0.xsd");
-            put("tool", "http://www.springframework.org/schema/tool");
-            put("tx", "http://www.springframework.org/schema/tx");
-            put("util", "http://www.springframework.org/schema/util");
-            put("webflow-config", "http://www.springframework.org/schema/webflow-config");
-            put("xsl", "http://www.w3.org/1999/XSL/Transform");
-        }
-    };
     private final Parameters _exportPackageParameters = new Parameters();
     private final File _file;
     private final Set<String> _ignoredResourcePaths = SetUtil.fromArray(PropsValues.MODULE_FRAMEWORK_WEB_GENERATOR_EXCLUDED_PATHS);
@@ -127,11 +102,6 @@ public class WabProcessor {
         return outputFile;
     }
 
-    private void appendProperty(Analyzer analyzer, String property, String string) {
-
-        analyzer.setProperty(property, Analyzer.append(analyzer.getProperty(property), string));
-    }
-
     private File autoDeploy() {
         String webContextpath = getWebContextPath();
 
@@ -159,48 +129,15 @@ public class WabProcessor {
             }
 
             try {
-                BaseDeployer baseDeployer = new PortletDeployer();
-
-                baseDeployer.setBaseDir(parentFile.getAbsolutePath());
-                baseDeployer.setAppServerType(ServerDetector.TOMCAT_ID);
-                baseDeployer.setJars(new ArrayList<>());
-                baseDeployer.setUnpackWar(true);
-
-                setTlds(baseDeployer);
-                setJars(baseDeployer);
+                BaseDeployer baseDeployer = DeployerHelper.getBaseDeployer(parentFile, _parameters);
 
                 baseDeployer.deployFile(autoDeploymentContext);
             } catch (Exception e) {
                 e.printStackTrace();
             }
-
         }
 
         return deployDir;
-    }
-
-    private void setTlds(final BaseDeployer baseDeployer) {
-        String tldFolderPath = MapUtil.getString(this._parameters, "TOMCAT_DIR") + "/webapps/ROOT/WEB-INF/tld/";
-
-        baseDeployer.setAuiTaglibDTD(tldFolderPath + "liferay-aui.tld");
-        baseDeployer.setPortletTaglibDTD(tldFolderPath + "liferay-portlet_2_0.tld");
-        baseDeployer.setPortletExtTaglibDTD(tldFolderPath + "liferay-portlet-ext.tld");
-        baseDeployer.setSecurityTaglibDTD(tldFolderPath + "liferay-security.tld");
-        baseDeployer.setThemeTaglibDTD(tldFolderPath + "liferay-theme.tld");
-        baseDeployer.setUiTaglibDTD(tldFolderPath + "liferay-ui.tld");
-        baseDeployer.setUtilTaglibDTD(tldFolderPath + "liferay-util.tld");
-    }
-
-    private void setJars(final BaseDeployer baseDeployer) throws Exception {
-        List<String> jars = new ArrayList<>();
-
-        baseDeployer.addExtJar(jars, "ext-util-bridges.jar");
-        baseDeployer.addExtJar(jars, "ext-util-java.jar");
-        baseDeployer.addExtJar(jars, "ext-util-taglib.jar");
-        baseDeployer.addRequiredJar(jars, "util-bridges.jar");
-        baseDeployer.addRequiredJar(jars, "util-java.jar");
-        baseDeployer.addRequiredJar(jars, "util-taglib.jar");
-        baseDeployer.setJars(jars);
     }
 
     private AutoDeploymentContext buildAutoDeploymentContext(String context) {
@@ -228,12 +165,81 @@ public class WabProcessor {
         return autoDeploymentContext;
     }
 
-    private void formatDocument(File file, Document document) throws IOException {
-        try {
-            FileUtil.write(file, document.formattedString("  "));
-        } catch (Exception e) {
-            throw new IOException(e);
+    private File transformToOSGiBundle(Jar jar) throws IOException {
+        Builder analyzer = new Builder();
+
+        analyzer.setBase(_pluginDir);
+        analyzer.setJar(jar);
+        analyzer.setProperty("-jsp", "*.jsp,*.jspf");
+        analyzer.setProperty("Web-ContextPath", getWebContextPath());
+
+        Set<Object> plugins = analyzer.getPlugins();
+
+        Object dsAnnotationsPlugin = null;
+
+        for (Object plugin : plugins) {
+            if (plugin instanceof DSAnnotations) {
+                dsAnnotationsPlugin = plugin;
+            }
         }
+
+        if (dsAnnotationsPlugin != null) {
+            plugins.remove(dsAnnotationsPlugin);
+        }
+
+        plugins.add(new JspAnalyzerPlugin());
+
+        Properties pluginPackageProperties = getPluginPackageProperties();
+
+        processBundleVersion(analyzer);
+        processBundleClasspath(analyzer, pluginPackageProperties);
+        processBundleSymbolicName(analyzer);
+        processExtraHeaders(analyzer);
+        processPluginPackagePropertiesExportImportPackages(pluginPackageProperties);
+
+        processBundleManifestVersion(analyzer);
+
+        processLiferayPortletXML();
+        processWebXML("WEB-INF/web.xml");
+        processWebXML("WEB-INF/liferay-web.xml");
+
+        processDeclarativeReferences(analyzer);
+
+        processExtraRequirements();
+
+        processPackageNames(analyzer);
+
+        processRequiredDeploymentContexts(analyzer);
+
+        processBeans(analyzer);
+
+        _processExcludedJSPs(analyzer);
+
+        analyzer.setProperties(pluginPackageProperties);
+
+        try {
+            jar = analyzer.build();
+
+            File outputFile = analyzer.getOutputFile(null);
+
+            jar.write(outputFile);
+
+            return outputFile;
+        } catch (Exception e) {
+            throw new IOException("Unable to calculate the manifest", e);
+        } finally {
+            analyzer.close();
+        }
+    }
+
+    private String getWebContextPath() {
+        String webContextpath = MapUtil.getString(_parameters, "Web-ContextPath");
+
+        if (!webContextpath.startsWith(StringPool.SLASH)) {
+            webContextpath = StringPool.SLASH.concat(webContextpath);
+        }
+
+        return webContextpath;
     }
 
     private Properties getPluginPackageProperties() {
@@ -250,18 +256,541 @@ public class WabProcessor {
         }
     }
 
-    private String getVersionedServicePackageName(String partialPackageName) {
-        return StringBundler.concat(_servicePackageName, partialPackageName, ";version=", _bundleVersion);
-    }
+    private void processBundleVersion(Analyzer analyzer) {
+        _bundleVersion = MapUtil.getString(_parameters, Constants.BUNDLE_VERSION);
 
-    private String getWebContextPath() {
-        String webContextpath = MapUtil.getString(_parameters, "Web-ContextPath");
-
-        if (!webContextpath.startsWith(StringPool.SLASH)) {
-            webContextpath = StringPool.SLASH.concat(webContextpath);
+        if (Validator.isNull(_bundleVersion)) {
+            if (_pluginPackage != null) {
+                _bundleVersion = _pluginPackage.getVersion();
+            } else {
+                _bundleVersion = "1.0.0";
+            }
         }
 
-        return webContextpath;
+        if (!Version.isVersion(_bundleVersion)) {
+
+            // Convert from the Maven format to the OSGi format
+
+            Matcher matcher = _versionMavenPattern.matcher(_bundleVersion);
+
+            if (matcher.matches()) {
+                StringBuilder sb = new StringBuilder();
+
+                sb.append(matcher.group(1));
+                sb.append(".");
+                sb.append(matcher.group(3));
+                sb.append(".");
+                sb.append(matcher.group(5));
+                sb.append(".");
+                sb.append(matcher.group(7));
+
+                _bundleVersion = sb.toString();
+            } else {
+                _bundleVersion = "0.0.0." + _bundleVersion.replace(".", "_");
+            }
+        }
+
+        analyzer.setProperty(Constants.BUNDLE_VERSION, _bundleVersion);
+    }
+
+    private void processBundleClasspath(Analyzer analyzer, Properties pluginPackageProperties) throws IOException {
+
+        appendProperty(analyzer, Constants.BUNDLE_CLASSPATH, "ext/WEB-INF/classes");
+
+        // Class path order is critical
+
+        Map<String, File> classPath = new LinkedHashMap<>();
+
+        classPath.put("WEB-INF/classes", new File(_pluginDir, "WEB-INF/classes"));
+
+        appendProperty(analyzer, Constants.BUNDLE_CLASSPATH, "WEB-INF/classes");
+
+        processFiles(classPath, analyzer);
+
+        Collection<File> files = classPath.values();
+
+        analyzer.setClasspath(files.toArray(new File[classPath.size()]));
+    }
+
+    private void processBundleSymbolicName(Analyzer analyzer) {
+        String bundleSymbolicName = MapUtil.getString(_parameters, Constants.BUNDLE_SYMBOLICNAME);
+
+        if (Validator.isNull(bundleSymbolicName)) {
+            bundleSymbolicName = _context.substring(1);
+        }
+
+        analyzer.setProperty(Constants.BUNDLE_SYMBOLICNAME, bundleSymbolicName);
+    }
+
+    private void processExtraHeaders(Analyzer analyzer) {
+        String bundleSymbolicName = analyzer.getProperty(Constants.BUNDLE_SYMBOLICNAME);
+
+        Properties properties = PropsUtil.getProperties(PropsKeys.MODULE_FRAMEWORK_WEB_GENERATOR_HEADERS, true);
+
+        Enumeration<Object> keys = properties.keys();
+
+        while (keys.hasMoreElements()) {
+            String key = (String) keys.nextElement();
+
+            String value = properties.getProperty(key);
+
+            String processedKey = key;
+
+            if (processedKey.endsWith(StringPool.CLOSE_BRACKET)) {
+                String filterString = StringPool.OPEN_BRACKET + bundleSymbolicName + StringPool.CLOSE_BRACKET;
+
+                if (!processedKey.endsWith(filterString)) {
+                    continue;
+                }
+
+                processedKey = processedKey.substring(0, processedKey.indexOf(StringPool.OPEN_BRACKET));
+            }
+
+            if (Validator.isNotNull(value)) {
+                Parameters parameters = new Parameters(value);
+
+                if (processedKey.equals(Constants.EXPORT_PACKAGE)) {
+                    _exportPackageParameters.mergeWith(parameters, true);
+                } else if (processedKey.equals(Constants.IMPORT_PACKAGE)) {
+                    _importPackageParameters.mergeWith(parameters, true);
+                }
+
+                analyzer.setProperty(processedKey, parameters.toString());
+            }
+        }
+    }
+
+    private void processPluginPackagePropertiesExportImportPackages(Properties pluginPackageProperties) {
+
+        if (pluginPackageProperties == null) {
+            return;
+        }
+
+        String exportPackage = pluginPackageProperties.getProperty(
+                Constants.EXPORT_PACKAGE);
+
+        if (Validator.isNotNull(exportPackage)) {
+            Parameters parameters = new Parameters(exportPackage);
+
+            _exportPackageParameters.mergeWith(parameters, true);
+
+            pluginPackageProperties.remove(Constants.EXPORT_PACKAGE);
+        }
+
+        String importPackage = pluginPackageProperties.getProperty(
+                Constants.IMPORT_PACKAGE);
+
+        if (Validator.isNotNull(importPackage)) {
+            Parameters parameters = new Parameters(importPackage);
+
+            _importPackageParameters.mergeWith(parameters, true);
+
+            pluginPackageProperties.remove(Constants.IMPORT_PACKAGE);
+        }
+    }
+
+    private void processBundleManifestVersion(Analyzer analyzer) {
+        String bundleManifestVersion = MapUtil.getString(_parameters, Constants.BUNDLE_MANIFESTVERSION);
+
+        if (Validator.isNull(bundleManifestVersion)) {
+            bundleManifestVersion = "2";
+        }
+
+        analyzer.setProperty(Constants.BUNDLE_MANIFESTVERSION, bundleManifestVersion);
+    }
+
+    private void processLiferayPortletXML() throws IOException {
+        File file = new File(_pluginDir, "WEB-INF/liferay-portlet.xml");
+
+        if (!file.exists()) {
+            return;
+        }
+
+        Document document = readDocument(file);
+
+        Element rootElement = document.getRootElement();
+
+        for (Element element : rootElement.elements("portlet")) {
+            Element strutsPathElement = element.element("struts-path");
+
+            if (strutsPathElement == null) {
+                continue;
+            }
+
+            String strutsPath = strutsPathElement.getTextTrim();
+
+            if (!strutsPath.startsWith(StringPool.SLASH)) {
+                strutsPath = StringPool.SLASH.concat(strutsPath);
+            }
+
+            strutsPathElement.setText(
+                    Portal.PATH_MODULE.substring(1) + _context + strutsPath);
+        }
+
+        formatDocument(file, document);
+    }
+
+    private void processWebXML(String path) throws IOException {
+        File file = new File(_pluginDir, path);
+
+        if (!file.exists()) {
+            return;
+        }
+
+        Document document = readDocument(file);
+
+        Element rootElement = document.getRootElement();
+
+        for (Element element : rootElement.elements("filter")) {
+            Element filterClassElement = element.element("filter-class");
+
+            processWebXML(filterClassElement, element.elements("init-param"), PortalClassLoaderFilter.class);
+        }
+
+        for (Element element : rootElement.elements("servlet")) {
+            Element servletClassElement = element.element("servlet-class");
+
+            processWebXML(servletClassElement, element.elements("init-param"), PortalClassLoaderServlet.class);
+        }
+
+        formatDocument(file, document);
+    }
+
+    private void processWebXML(Element element, List<Element> initParamElements, Class<?> clazz) {
+
+        if (element == null) {
+            return;
+        }
+
+        String elementText = element.getTextTrim();
+
+        if (!elementText.equals(clazz.getName())) {
+            return;
+        }
+
+        for (Element initParamElement : initParamElements) {
+            Element paramNameElement = initParamElement.element("param-name");
+
+            String paramNameValue = paramNameElement.getTextTrim();
+
+            if (!paramNameValue.equals(element.getName())) {
+                continue;
+            }
+
+            Element paramValueElement = initParamElement.element("param-value");
+
+            element.setText(paramValueElement.getTextTrim());
+
+            initParamElement.detach();
+
+            return;
+        }
+    }
+
+    private void processDeclarativeReferences(Analyzer analyzer) throws IOException {
+
+        processDefaultServletPackages();
+        processTLDDependencies(analyzer);
+
+        processPortalListenerClassesDependencies(analyzer);
+
+        Path pluginPath = _pluginDir.toPath();
+
+        processXMLDependencies(analyzer, "WEB-INF/liferay-hook.xml", _XPATHS_HOOK);
+        processXMLDependencies(analyzer, "WEB-INF/liferay-portlet.xml", _XPATHS_LIFERAY);
+        processXMLDependencies(analyzer, "WEB-INF/portlet.xml", _XPATHS_PORTLET);
+        processXMLDependencies(analyzer, "WEB-INF/web.xml", _XPATHS_JAVAEE);
+
+        Path classes = pluginPath.resolve("WEB-INF/classes/");
+
+        processPropertiesDependencies(analyzer, classes, ".properties", _KNOWN_PROPERTY_KEYS);
+        processXMLDependencies(analyzer, classes, ".xml", _XPATHS_HBM);
+        processXMLDependencies(analyzer, classes, ".xml", _XPATHS_SPRING);
+    }
+
+    private void processXMLDependencies(Analyzer analyzer, String fileName, String xPathExpression) {
+
+        File file = new File(_pluginDir, fileName);
+
+        processXMLDependencies(analyzer, file, xPathExpression);
+    }
+
+    private void processXMLDependencies(Analyzer analyzer, Path path, String suffix, String xPathExpression) throws IOException {
+
+        File file = path.toFile();
+
+        if (!file.isDirectory()) {
+            return;
+        }
+
+        Stream<Path> pathStream = Files.walk(path);
+
+        Stream<File> fileStream = pathStream.map(Path::toFile);
+
+        fileStream.forEach(entry -> {
+            String pathString = entry.getPath();
+
+            if (pathString.endsWith(suffix)) {
+                processXMLDependencies(analyzer, entry, _XPATHS_SPRING);
+            }
+        });
+    }
+
+    private void processXMLDependencies(Analyzer analyzer, File file, String xPathExpression) {
+
+        if (!file.exists()) {
+            return;
+        }
+
+        Document document = readDocument(file);
+
+        if (!document.hasContent()) {
+            return;
+        }
+
+        Element rootElement = document.getRootElement();
+
+        XPath xPath = SAXReaderUtil.createXPath(xPathExpression, _xsds);
+
+        List<Node> nodes = xPath.selectNodes(rootElement);
+
+        for (Node node : nodes) {
+            String text = node.getText();
+
+            text = text.trim();
+
+            processClass(analyzer, text);
+        }
+    }
+
+    private void processPropertiesDependencies(Analyzer analyzer, Path path, String suffix, String[] knownPropertyKeys) throws IOException {
+
+        File file = path.toFile();
+
+        if (!file.isDirectory()) {
+            return;
+        }
+
+        Stream<Path> pathStream = Files.walk(path);
+
+        Stream<File> fileStream = pathStream.map(Path::toFile);
+
+        fileStream.forEach(entry -> {
+            String pathString = entry.getPath();
+
+            if (pathString.endsWith(suffix)) {
+                processPropertiesDependencies(analyzer, entry, knownPropertyKeys);
+            }
+        });
+    }
+
+    private void processPropertiesDependencies(Analyzer analyzer, File file, String[] knownPropertyKeys) {
+
+        if (!file.exists()) {
+            return;
+        }
+
+        try (InputStream inputStream = new FileInputStream(file)) {
+            Properties properties = new Properties();
+
+            properties.load(inputStream);
+
+            if (properties.isEmpty()) {
+                return;
+            }
+
+            for (String key : knownPropertyKeys) {
+                String value = properties.getProperty(key);
+
+                if (value == null) {
+                    continue;
+                }
+
+                value = value.trim();
+
+                processClass(analyzer, value);
+            }
+        } catch (Exception e) {
+
+            // Ignore this case
+
+        }
+    }
+
+    private void processDefaultServletPackages() {
+        for (String value : PropsValues.MODULE_FRAMEWORK_WEB_GENERATOR_DEFAULT_SERVLET_PACKAGES) {
+
+            Parameters defaultPackage = new Parameters(value);
+
+            for (String packageName : defaultPackage.keySet()) {
+                if (_importPackageParameters.containsKey(packageName)) {
+                    continue;
+                }
+
+                _importPackageParameters.add(packageName, _optionalAttrs);
+            }
+        }
+    }
+
+    private void processTLDDependencies(Analyzer analyzer) throws IOException {
+
+        File dir = new File(_pluginDir, "WEB-INF/tld");
+
+        if (!dir.exists() || !dir.isDirectory()) {
+            return;
+        }
+
+        File[] files = dir.listFiles(
+                (File file) -> {
+                    if (!file.isFile()) {
+                        return false;
+                    }
+
+                    String fileName = file.getName();
+
+                    return fileName.endsWith(".tld");
+                });
+
+        for (File file : files) {
+            String content = FileUtil.read(file);
+
+            Matcher matcher = _tldPackagesPattern.matcher(content);
+
+            while (matcher.find()) {
+                String value = matcher.group(1);
+
+                value = value.trim();
+
+                processClass(analyzer, value);
+            }
+        }
+    }
+
+    private void processPortalListenerClassesDependencies(Analyzer analyzer) {
+        File file = new File(_pluginDir, "WEB-INF/web.xml");
+
+        if (!file.exists()) {
+            return;
+        }
+
+        Document document = readDocument(file);
+
+        Element rootElement = document.getRootElement();
+
+        List<Element> contextParamElements = rootElement.elements("context-param");
+
+        for (Element contextParamElement : contextParamElements) {
+            String paramName = contextParamElement.elementText("param-name");
+
+            if (Validator.isNotNull(paramName) && paramName.equals("portalListenerClasses")) {
+
+                String paramValue = contextParamElement.elementText("param-value");
+
+                String[] portalListenerClassNames = StringUtil.split(paramValue, StringPool.COMMA);
+
+                for (String portalListenerClassName : portalListenerClassNames) {
+
+                    processClass(analyzer, portalListenerClassName.trim());
+                }
+            }
+        }
+    }
+
+    private void processExtraRequirements() {
+        Attrs attrs = new Attrs(_optionalAttrs);
+
+        attrs.put("x-liferay-compatibility:", "spring");
+
+        _importPackageParameters.add("org.eclipse.core.runtime", attrs);
+
+        _importPackageParameters.add("!junit.*", new Attrs());
+    }
+
+    private void processPackageNames(Analyzer analyzer) {
+        processExportPackageNames(analyzer);
+        processImportPackageNames(analyzer);
+    }
+
+    private void processExportPackageNames(Analyzer analyzer) {
+        analyzer.setProperty(Constants.EXPORT_CONTENTS, _exportPackageParameters.toString());
+    }
+
+    private void processImportPackageNames(Analyzer analyzer) {
+        String packageName = MapUtil.getString(_parameters, Constants.IMPORT_PACKAGE);
+
+        if (Validator.isNotNull(packageName)) {
+            analyzer.setProperty(Constants.IMPORT_PACKAGE, packageName);
+        } else {
+            StringBundler sb = new StringBundler((_importPackageParameters.size() * 4) + 1);
+
+            for (Map.Entry<String, Attrs> entry :
+                    _importPackageParameters.entrySet()) {
+
+                String importPackageName = entry.getKey();
+
+                boolean containedInClasspath = false;
+
+                for (Jar jar : analyzer.getClasspath()) {
+                    List<String> packages = jar.getPackages();
+
+                    if (packages.contains(importPackageName)) {
+                        containedInClasspath = true;
+
+                        break;
+                    }
+                }
+
+                if (containedInClasspath) {
+                    continue;
+                }
+
+                sb.append(importPackageName);
+
+                Attrs attrs = entry.getValue();
+
+                if (!attrs.isEmpty()) {
+                    sb.append(";");
+                    sb.append(entry.getValue());
+                }
+
+                sb.append(StringPool.COMMA);
+            }
+
+            sb.append("*;resolution:=\"optional\"");
+
+            analyzer.setProperty(Constants.IMPORT_PACKAGE, sb.toString());
+        }
+    }
+
+    private void processRequiredDeploymentContexts(Analyzer analyzer) {
+        if (_pluginPackage == null) {
+            return;
+        }
+
+        List<String> requiredDeploymentContexts = _pluginPackage.getRequiredDeploymentContexts();
+
+        if (ListUtil.isEmpty(requiredDeploymentContexts)) {
+            return;
+        }
+
+        StringBundler sb = new StringBundler((6 * requiredDeploymentContexts.size()) - 1);
+
+        for (int i = 0; i < requiredDeploymentContexts.size(); i++) {
+            String requiredDeploymentContext = requiredDeploymentContexts.get(i);
+
+            sb.append(requiredDeploymentContext);
+
+            sb.append(StringPool.SEMICOLON);
+            sb.append(Constants.BUNDLE_VERSION_ATTRIBUTE);
+            sb.append(StringPool.EQUAL);
+            sb.append(_bundleVersion);
+
+            if ((i + 1) < requiredDeploymentContexts.size()) {
+                sb.append(StringPool.COMMA);
+            }
+        }
+
+        analyzer.setProperty(Constants.REQUIRE_BUNDLE, sb.toString());
     }
 
     private void processBeans(Builder analyzer) {
@@ -355,80 +884,36 @@ public class WabProcessor {
                 });
     }
 
-    private void processBundleClasspath(Analyzer analyzer, Properties pluginPackageProperties) throws IOException {
+    private void _processExcludedJSPs(Analyzer analyzer) {
+        File file = new File(_pluginDir, "/WEB-INF/liferay-hook.xml");
 
-        appendProperty(analyzer, Constants.BUNDLE_CLASSPATH, "ext/WEB-INF/classes");
-
-        // Class path order is critical
-
-        Map<String, File> classPath = new LinkedHashMap<>();
-
-        classPath.put("WEB-INF/classes", new File(_pluginDir, "WEB-INF/classes"));
-
-        appendProperty(analyzer, Constants.BUNDLE_CLASSPATH, "WEB-INF/classes");
-
-        processFiles(classPath, analyzer);
-
-        Collection<File> files = classPath.values();
-
-        analyzer.setClasspath(files.toArray(new File[classPath.size()]));
-    }
-
-    private void processBundleManifestVersion(Analyzer analyzer) {
-        String bundleManifestVersion = MapUtil.getString(_parameters, Constants.BUNDLE_MANIFESTVERSION);
-
-        if (Validator.isNull(bundleManifestVersion)) {
-            bundleManifestVersion = "2";
+        if (!file.exists()) {
+            return;
         }
 
-        analyzer.setProperty(Constants.BUNDLE_MANIFESTVERSION, bundleManifestVersion);
-    }
+        Document document = readDocument(file);
 
-    private void processBundleSymbolicName(Analyzer analyzer) {
-        String bundleSymbolicName = MapUtil.getString(_parameters, Constants.BUNDLE_SYMBOLICNAME);
-
-        if (Validator.isNull(bundleSymbolicName)) {
-            bundleSymbolicName = _context.substring(1);
+        if (!document.hasContent()) {
+            return;
         }
 
-        analyzer.setProperty(Constants.BUNDLE_SYMBOLICNAME, bundleSymbolicName);
-    }
+        Element rootElement = document.getRootElement();
 
-    private void processBundleVersion(Analyzer analyzer) {
-        _bundleVersion = MapUtil.getString(_parameters, Constants.BUNDLE_VERSION);
+        List<Node> nodes = rootElement.selectNodes("//custom-jsp-dir");
 
-        if (Validator.isNull(_bundleVersion)) {
-            if (_pluginPackage != null) {
-                _bundleVersion = _pluginPackage.getVersion();
-            } else {
-                _bundleVersion = "1.0.0";
+        String value = analyzer.getProperty("-jsp");
+
+        for (Node node : nodes) {
+            String text = node.getText();
+
+            if (text.startsWith("/")) {
+                text = text.substring(1);
             }
+
+            value = StringBundler.concat("!", text, "/*,", value);
         }
 
-        if (!Version.isVersion(_bundleVersion)) {
-
-            // Convert from the Maven format to the OSGi format
-
-            Matcher matcher = _versionMavenPattern.matcher(_bundleVersion);
-
-            if (matcher.matches()) {
-                StringBuilder sb = new StringBuilder();
-
-                sb.append(matcher.group(1));
-                sb.append(".");
-                sb.append(matcher.group(3));
-                sb.append(".");
-                sb.append(matcher.group(5));
-                sb.append(".");
-                sb.append(matcher.group(7));
-
-                _bundleVersion = sb.toString();
-            } else {
-                _bundleVersion = "0.0.0." + _bundleVersion.replace(".", "_");
-            }
-        }
-
-        analyzer.setProperty(Constants.BUNDLE_VERSION, _bundleVersion);
+        analyzer.setProperty("-jsp", value);
     }
 
     private void processClass(Analyzer analyzer, String value) {
@@ -445,94 +930,6 @@ public class WabProcessor {
         Descriptors.PackageRef packageRef = analyzer.getPackageRef(packageName);
 
         packages.put(packageRef, new Attrs());
-    }
-
-    private void processDeclarativeReferences(Analyzer analyzer) throws IOException {
-
-        processDefaultServletPackages();
-        processTLDDependencies(analyzer);
-
-        processPortalListenerClassesDependencies(analyzer);
-
-        Path pluginPath = _pluginDir.toPath();
-
-        processXMLDependencies(analyzer, "WEB-INF/liferay-hook.xml", _XPATHS_HOOK);
-        processXMLDependencies(analyzer, "WEB-INF/liferay-portlet.xml", _XPATHS_LIFERAY);
-        processXMLDependencies(analyzer, "WEB-INF/portlet.xml", _XPATHS_PORTLET);
-        processXMLDependencies(analyzer, "WEB-INF/web.xml", _XPATHS_JAVAEE);
-
-        Path classes = pluginPath.resolve("WEB-INF/classes/");
-
-        processPropertiesDependencies(analyzer, classes, ".properties", _KNOWN_PROPERTY_KEYS);
-        processXMLDependencies(analyzer, classes, ".xml", _XPATHS_HBM);
-        processXMLDependencies(analyzer, classes, ".xml", _XPATHS_SPRING);
-    }
-
-    private void processDefaultServletPackages() {
-        for (String value : PropsValues.MODULE_FRAMEWORK_WEB_GENERATOR_DEFAULT_SERVLET_PACKAGES) {
-
-            Parameters defaultPackage = new Parameters(value);
-
-            for (String packageName : defaultPackage.keySet()) {
-                if (_importPackageParameters.containsKey(packageName)) {
-                    continue;
-                }
-
-                _importPackageParameters.add(packageName, _optionalAttrs);
-            }
-        }
-    }
-
-    private void processExportPackageNames(Analyzer analyzer) {
-        analyzer.setProperty(Constants.EXPORT_CONTENTS, _exportPackageParameters.toString());
-    }
-
-    private void processExtraHeaders(Analyzer analyzer) {
-        String bundleSymbolicName = analyzer.getProperty(Constants.BUNDLE_SYMBOLICNAME);
-
-        Properties properties = PropsUtil.getProperties(PropsKeys.MODULE_FRAMEWORK_WEB_GENERATOR_HEADERS, true);
-
-        Enumeration<Object> keys = properties.keys();
-
-        while (keys.hasMoreElements()) {
-            String key = (String) keys.nextElement();
-
-            String value = properties.getProperty(key);
-
-            String processedKey = key;
-
-            if (processedKey.endsWith(StringPool.CLOSE_BRACKET)) {
-                String filterString = StringPool.OPEN_BRACKET + bundleSymbolicName + StringPool.CLOSE_BRACKET;
-
-                if (!processedKey.endsWith(filterString)) {
-                    continue;
-                }
-
-                processedKey = processedKey.substring(0, processedKey.indexOf(StringPool.OPEN_BRACKET));
-            }
-
-            if (Validator.isNotNull(value)) {
-                Parameters parameters = new Parameters(value);
-
-                if (processedKey.equals(Constants.EXPORT_PACKAGE)) {
-                    _exportPackageParameters.mergeWith(parameters, true);
-                } else if (processedKey.equals(Constants.IMPORT_PACKAGE)) {
-                    _importPackageParameters.mergeWith(parameters, true);
-                }
-
-                analyzer.setProperty(processedKey, parameters.toString());
-            }
-        }
-    }
-
-    private void processExtraRequirements() {
-        Attrs attrs = new Attrs(_optionalAttrs);
-
-        attrs.put("x-liferay-compatibility:", "spring");
-
-        _importPackageParameters.add("org.eclipse.core.runtime", attrs);
-
-        _importPackageParameters.add("!junit.*", new Attrs());
     }
 
     private void processFiles(Map<String, File> classPath, Analyzer analyzer) {
@@ -578,235 +975,6 @@ public class WabProcessor {
         }
     }
 
-    private void processImportPackageNames(Analyzer analyzer) {
-        String packageName = MapUtil.getString(_parameters, Constants.IMPORT_PACKAGE);
-
-        if (Validator.isNotNull(packageName)) {
-            analyzer.setProperty(Constants.IMPORT_PACKAGE, packageName);
-        } else {
-            StringBundler sb = new StringBundler((_importPackageParameters.size() * 4) + 1);
-
-            for (Map.Entry<String, Attrs> entry :
-                    _importPackageParameters.entrySet()) {
-
-                String importPackageName = entry.getKey();
-
-                boolean containedInClasspath = false;
-
-                for (Jar jar : analyzer.getClasspath()) {
-                    List<String> packages = jar.getPackages();
-
-                    if (packages.contains(importPackageName)) {
-                        containedInClasspath = true;
-
-                        break;
-                    }
-                }
-
-                if (containedInClasspath) {
-                    continue;
-                }
-
-                sb.append(importPackageName);
-
-                Attrs attrs = entry.getValue();
-
-                if (!attrs.isEmpty()) {
-                    sb.append(";");
-                    sb.append(entry.getValue());
-                }
-
-                sb.append(StringPool.COMMA);
-            }
-
-            sb.append("*;resolution:=\"optional\"");
-
-            analyzer.setProperty(Constants.IMPORT_PACKAGE, sb.toString());
-        }
-    }
-
-    private void processLiferayPortletXML() throws IOException {
-        File file = new File(_pluginDir, "WEB-INF/liferay-portlet.xml");
-
-        if (!file.exists()) {
-            return;
-        }
-
-        Document document = readDocument(file);
-
-        Element rootElement = document.getRootElement();
-
-        for (Element element : rootElement.elements("portlet")) {
-            Element strutsPathElement = element.element("struts-path");
-
-            if (strutsPathElement == null) {
-                continue;
-            }
-
-            String strutsPath = strutsPathElement.getTextTrim();
-
-            if (!strutsPath.startsWith(StringPool.SLASH)) {
-                strutsPath = StringPool.SLASH.concat(strutsPath);
-            }
-
-            strutsPathElement.setText(
-                    Portal.PATH_MODULE.substring(1) + _context + strutsPath);
-        }
-
-        formatDocument(file, document);
-    }
-
-    private void processPackageNames(Analyzer analyzer) {
-        processExportPackageNames(analyzer);
-        processImportPackageNames(analyzer);
-    }
-
-    private void processPluginPackagePropertiesExportImportPackages(Properties pluginPackageProperties) {
-
-        if (pluginPackageProperties == null) {
-            return;
-        }
-
-        String exportPackage = pluginPackageProperties.getProperty(
-                Constants.EXPORT_PACKAGE);
-
-        if (Validator.isNotNull(exportPackage)) {
-            Parameters parameters = new Parameters(exportPackage);
-
-            _exportPackageParameters.mergeWith(parameters, true);
-
-            pluginPackageProperties.remove(Constants.EXPORT_PACKAGE);
-        }
-
-        String importPackage = pluginPackageProperties.getProperty(
-                Constants.IMPORT_PACKAGE);
-
-        if (Validator.isNotNull(importPackage)) {
-            Parameters parameters = new Parameters(importPackage);
-
-            _importPackageParameters.mergeWith(parameters, true);
-
-            pluginPackageProperties.remove(Constants.IMPORT_PACKAGE);
-        }
-    }
-
-    private void processPortalListenerClassesDependencies(Analyzer analyzer) {
-        File file = new File(_pluginDir, "WEB-INF/web.xml");
-
-        if (!file.exists()) {
-            return;
-        }
-
-        Document document = readDocument(file);
-
-        Element rootElement = document.getRootElement();
-
-        List<Element> contextParamElements = rootElement.elements("context-param");
-
-        for (Element contextParamElement : contextParamElements) {
-            String paramName = contextParamElement.elementText("param-name");
-
-            if (Validator.isNotNull(paramName) && paramName.equals("portalListenerClasses")) {
-
-                String paramValue = contextParamElement.elementText("param-value");
-
-                String[] portalListenerClassNames = StringUtil.split(paramValue, StringPool.COMMA);
-
-                for (String portalListenerClassName : portalListenerClassNames) {
-
-                    processClass(analyzer, portalListenerClassName.trim());
-                }
-            }
-        }
-    }
-
-    private void processPropertiesDependencies(Analyzer analyzer, File file, String[] knownPropertyKeys) {
-
-        if (!file.exists()) {
-            return;
-        }
-
-        try (InputStream inputStream = new FileInputStream(file)) {
-            Properties properties = new Properties();
-
-            properties.load(inputStream);
-
-            if (properties.isEmpty()) {
-                return;
-            }
-
-            for (String key : knownPropertyKeys) {
-                String value = properties.getProperty(key);
-
-                if (value == null) {
-                    continue;
-                }
-
-                value = value.trim();
-
-                processClass(analyzer, value);
-            }
-        } catch (Exception e) {
-
-            // Ignore this case
-
-        }
-    }
-
-    private void processPropertiesDependencies(Analyzer analyzer, Path path, String suffix, String[] knownPropertyKeys) throws IOException {
-
-        File file = path.toFile();
-
-        if (!file.isDirectory()) {
-            return;
-        }
-
-        Stream<Path> pathStream = Files.walk(path);
-
-        Stream<File> fileStream = pathStream.map(Path::toFile);
-
-        fileStream.forEach(
-                entry -> {
-                    String pathString = entry.getPath();
-
-                    if (pathString.endsWith(suffix)) {
-                        processPropertiesDependencies(
-                                analyzer, entry, knownPropertyKeys);
-                    }
-                });
-    }
-
-    private void processRequiredDeploymentContexts(Analyzer analyzer) {
-        if (_pluginPackage == null) {
-            return;
-        }
-
-        List<String> requiredDeploymentContexts = _pluginPackage.getRequiredDeploymentContexts();
-
-        if (ListUtil.isEmpty(requiredDeploymentContexts)) {
-            return;
-        }
-
-        StringBundler sb = new StringBundler((6 * requiredDeploymentContexts.size()) - 1);
-
-        for (int i = 0; i < requiredDeploymentContexts.size(); i++) {
-            String requiredDeploymentContext = requiredDeploymentContexts.get(i);
-
-            sb.append(requiredDeploymentContext);
-
-            sb.append(StringPool.SEMICOLON);
-            sb.append(Constants.BUNDLE_VERSION_ATTRIBUTE);
-            sb.append(StringPool.EQUAL);
-            sb.append(_bundleVersion);
-
-            if ((i + 1) < requiredDeploymentContexts.size()) {
-                sb.append(StringPool.COMMA);
-            }
-        }
-
-        analyzer.setProperty(Constants.REQUIRE_BUNDLE, sb.toString());
-    }
-
     private void processServicePackageName(Resource resource) {
         try (InputStream inputStream = resource.openInputStream()) {
             Document document = UnsecureSAXReaderUtil.read(inputStream);
@@ -822,165 +990,32 @@ public class WabProcessor {
             };
 
             for (String partialPackageName : partialPackageNames) {
-                Parameters parameters = new Parameters(
-                        getVersionedServicePackageName(partialPackageName));
+                Parameters parameters = new Parameters(getVersionedServicePackageName(partialPackageName));
 
                 _exportPackageParameters.mergeWith(parameters, false);
                 _importPackageParameters.mergeWith(parameters, false);
             }
 
-            _importPackageParameters.add(
-                    "com.liferay.portal.osgi.web.wab.generator", _optionalAttrs);
+            _importPackageParameters.add("com.liferay.portal.osgi.web.wab.generator", _optionalAttrs);
         } catch (Exception e) {
             _log.error(e, e);
         }
     }
 
-    private void processTLDDependencies(Analyzer analyzer) throws IOException {
-
-        File dir = new File(_pluginDir, "WEB-INF/tld");
-
-        if (!dir.exists() || !dir.isDirectory()) {
-            return;
-        }
-
-        File[] files = dir.listFiles(
-                (File file) -> {
-                    if (!file.isFile()) {
-                        return false;
-                    }
-
-                    String fileName = file.getName();
-
-                    return fileName.endsWith(".tld");
-                });
-
-        for (File file : files) {
-            String content = FileUtil.read(file);
-
-            Matcher matcher = _tldPackagesPattern.matcher(content);
-
-            while (matcher.find()) {
-                String value = matcher.group(1);
-
-                value = value.trim();
-
-                processClass(analyzer, value);
-            }
-        }
+    private String getVersionedServicePackageName(String partialPackageName) {
+        return StringBundler.concat(_servicePackageName, partialPackageName, ";version=", _bundleVersion);
     }
 
-    private void processWebXML(Element element, List<Element> initParamElements, Class<?> clazz) {
-
-        if (element == null) {
-            return;
-        }
-
-        String elementText = element.getTextTrim();
-
-        if (!elementText.equals(clazz.getName())) {
-            return;
-        }
-
-        for (Element initParamElement : initParamElements) {
-            Element paramNameElement = initParamElement.element("param-name");
-
-            String paramNameValue = paramNameElement.getTextTrim();
-
-            if (!paramNameValue.equals(element.getName())) {
-                continue;
-            }
-
-            Element paramValueElement = initParamElement.element("param-value");
-
-            element.setText(paramValueElement.getTextTrim());
-
-            initParamElement.detach();
-
-            return;
-        }
+    private void appendProperty(Analyzer analyzer, String property, String string) {
+        analyzer.setProperty(property, Analyzer.append(analyzer.getProperty(property), string));
     }
 
-    private void processWebXML(String path) throws IOException {
-        File file = new File(_pluginDir, path);
-
-        if (!file.exists()) {
-            return;
+    private void formatDocument(File file, Document document) throws IOException {
+        try {
+            FileUtil.write(file, document.formattedString("  "));
+        } catch (Exception e) {
+            throw new IOException(e);
         }
-
-        Document document = readDocument(file);
-
-        Element rootElement = document.getRootElement();
-
-        for (Element element : rootElement.elements("filter")) {
-            Element filterClassElement = element.element("filter-class");
-
-            processWebXML(filterClassElement, element.elements("init-param"), PortalClassLoaderFilter.class);
-        }
-
-        for (Element element : rootElement.elements("servlet")) {
-            Element servletClassElement = element.element("servlet-class");
-
-            processWebXML(servletClassElement, element.elements("init-param"), PortalClassLoaderServlet.class);
-        }
-
-        formatDocument(file, document);
-    }
-
-    private void processXMLDependencies(Analyzer analyzer, File file, String xPathExpression) {
-
-        if (!file.exists()) {
-            return;
-        }
-
-        Document document = readDocument(file);
-
-        if (!document.hasContent()) {
-            return;
-        }
-
-        Element rootElement = document.getRootElement();
-
-        XPath xPath = SAXReaderUtil.createXPath(xPathExpression, _xsds);
-
-        List<Node> nodes = xPath.selectNodes(rootElement);
-
-        for (Node node : nodes) {
-            String text = node.getText();
-
-            text = text.trim();
-
-            processClass(analyzer, text);
-        }
-    }
-
-    private void processXMLDependencies(Analyzer analyzer, Path path, String suffix, String xPathExpression) throws IOException {
-
-        File file = path.toFile();
-
-        if (!file.isDirectory()) {
-            return;
-        }
-
-        Stream<Path> pathStream = Files.walk(path);
-
-        Stream<File> fileStream = pathStream.map(Path::toFile);
-
-        fileStream.forEach(
-                entry -> {
-                    String pathString = entry.getPath();
-
-                    if (pathString.endsWith(suffix)) {
-                        processXMLDependencies(analyzer, entry, _XPATHS_SPRING);
-                    }
-                });
-    }
-
-    private void processXMLDependencies(Analyzer analyzer, String fileName, String xPathExpression) {
-
-        File file = new File(_pluginDir, fileName);
-
-        processXMLDependencies(analyzer, file, xPathExpression);
     }
 
     private Document readDocument(File file) {
@@ -990,73 +1025,6 @@ public class WabProcessor {
             return UnsecureSAXReaderUtil.read(content);
         } catch (Exception de) {
             return SAXReaderUtil.createDocument();
-        }
-    }
-
-    private File transformToOSGiBundle(Jar jar) throws IOException {
-        Builder analyzer = new Builder();
-
-        analyzer.setBase(_pluginDir);
-        analyzer.setJar(jar);
-        analyzer.setProperty("-jsp", "*.jsp,*.jspf");
-        analyzer.setProperty("Web-ContextPath", getWebContextPath());
-
-        Set<Object> plugins = analyzer.getPlugins();
-
-        Object dsAnnotationsPlugin = null;
-
-        for (Object plugin : plugins) {
-            if (plugin instanceof DSAnnotations) {
-                dsAnnotationsPlugin = plugin;
-            }
-        }
-
-        if (dsAnnotationsPlugin != null) {
-            plugins.remove(dsAnnotationsPlugin);
-        }
-
-        plugins.add(new JspAnalyzerPlugin());
-
-        Properties pluginPackageProperties = getPluginPackageProperties();
-
-        processBundleVersion(analyzer);
-        processBundleClasspath(analyzer, pluginPackageProperties);
-        processBundleSymbolicName(analyzer);
-        processExtraHeaders(analyzer);
-        processPluginPackagePropertiesExportImportPackages(pluginPackageProperties);
-
-        processBundleManifestVersion(analyzer);
-
-        processLiferayPortletXML();
-        processWebXML("WEB-INF/web.xml");
-        processWebXML("WEB-INF/liferay-web.xml");
-
-        processDeclarativeReferences(analyzer);
-
-        processExtraRequirements();
-
-        processPackageNames(analyzer);
-
-        processRequiredDeploymentContexts(analyzer);
-
-        processBeans(analyzer);
-
-        _processExcludedJSPs(analyzer);
-
-        analyzer.setProperties(pluginPackageProperties);
-
-        try {
-            jar = analyzer.build();
-
-            File outputFile = analyzer.getOutputFile(null);
-
-            jar.write(outputFile);
-
-            return outputFile;
-        } catch (Exception e) {
-            throw new IOException("Unable to calculate the manifest", e);
-        } finally {
-            analyzer.close();
         }
     }
 
@@ -1079,37 +1047,4 @@ public class WabProcessor {
             System.out.println("Deploy folder not configured - manual deploy required");
         }
     }
-
-    private void _processExcludedJSPs(Analyzer analyzer) {
-        File file = new File(_pluginDir, "/WEB-INF/liferay-hook.xml");
-
-        if (!file.exists()) {
-            return;
-        }
-
-        Document document = readDocument(file);
-
-        if (!document.hasContent()) {
-            return;
-        }
-
-        Element rootElement = document.getRootElement();
-
-        List<Node> nodes = rootElement.selectNodes("//custom-jsp-dir");
-
-        String value = analyzer.getProperty("-jsp");
-
-        for (Node node : nodes) {
-            String text = node.getText();
-
-            if (text.startsWith("/")) {
-                text = text.substring(1);
-            }
-
-            value = StringBundler.concat("!", text, "/*,", value);
-        }
-
-        analyzer.setProperty("-jsp", value);
-    }
-
 }
