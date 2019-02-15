@@ -11,11 +11,15 @@ public class TimerHelper {
         globalStart = LocalDateTime.now();
     }
 
-    public void time(final String name, final Runnable method) {
+    public <E extends Exception> void time(final String name, final ThrowingRunnable<E> throwingRunnable) {
         System.out.println("Processing " + name);
         final LocalDateTime start = LocalDateTime.now();
 
-        method.run();
+        try {
+            throwingRunnable.run();
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
 
         final LocalDateTime end = LocalDateTime.now();
 
@@ -23,5 +27,10 @@ public class TimerHelper {
         final Duration total = Duration.between(globalStart, end);
 
         System.out.println(String.format("Took %s (total: %s)", intermediary, total));
+    }
+
+    @FunctionalInterface
+    public interface ThrowingRunnable<E extends Exception> {
+        void run() throws E;
     }
 }
