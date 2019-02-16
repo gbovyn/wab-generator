@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 public enum TimerHelper {
 
@@ -14,12 +16,13 @@ public enum TimerHelper {
 
     private static final LocalDateTime GLOBAL_START = LocalDateTime.now();
 
+    private static final Map<String, LocalDateTime> durations = new HashMap<>();
+
     public void time(final String name) {
         this.time(name, () -> {});
     }
 
     public <E extends Exception> void time(final String name, final ThrowingRunnable<E> throwingRunnable) {
-        LOG.info("Processing {}", name);
         final LocalDateTime start = LocalDateTime.now();
 
         try {
@@ -31,14 +34,32 @@ public enum TimerHelper {
         final LocalDateTime end = LocalDateTime.now();
 
         final Duration intermediary = Duration.between(start, end);
-        final Duration total = Duration.between(GLOBAL_START, end);
+        final Duration total = getTotal(end);
 
-        LOG.info("Took {} (total: {})", intermediary, total);
+        LOG.info("Processed '{}' (took {} on {})", name, intermediary, total);
+    }
+
+    public void start(final String name) {
+        durations.put(name, LocalDateTime.now());
+    }
+
+    public void end(final String name) {
+        final LocalDateTime start = durations.get(name);
+        final LocalDateTime end = LocalDateTime.now();
+        final Duration intermediary = Duration.between(start, end);
+
+        final Duration total = getTotal(end);
+
+        LOG.info("Processed '{}' (took {} on {})", name, intermediary, total);
+    }
+
+    private Duration getTotal(final LocalDateTime end) {
+        return Duration.between(GLOBAL_START, end);
     }
 
     public void printTotal() {
         final LocalDateTime now = LocalDateTime.now();
-        final Duration total = Duration.between(GLOBAL_START, now);
+        final Duration total = getTotal(now);
 
         LOG.info("Total: {} minutes {} seconds", total.toMinutes(), total.getSeconds() % 60);
     }

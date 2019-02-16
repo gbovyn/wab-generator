@@ -65,7 +65,7 @@ import java.util.zip.ZipFile;
  */
 public class BaseDeployer implements AutoDeployer, Deployer {
 
-    private static final Logger logger = LoggerFactory.getLogger(TimerHelper.class);
+    private static final Logger logger = LoggerFactory.getLogger(BaseDeployer.class);
 
     private static final String _PORTAL_CLASS_LOADER = "com.liferay.support.tomcat.loader.PortalClassLoader";
     private static final String LOGGING_PROPERTIES = "logging.properties";

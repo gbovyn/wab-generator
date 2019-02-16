@@ -257,8 +257,9 @@ public class WabProcessor {
 
             analyzer.setProperties(pluginPackageProperties);
 
+            timer.start("analyzer.build");
             final Jar jarWithManifest = analyzer.build();
-            timer.time("analyzer.build");
+            timer.end("analyzer.build");
 
             final File outputFile = analyzer.getOutputFile(null);
 

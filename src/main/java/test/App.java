@@ -17,15 +17,15 @@ import org.slf4j.LoggerFactory;
 
 public class App {
 
-    private static final Logger LOG = LoggerFactory.getLogger(TimerHelper.class);
+    private static final Logger LOG = LoggerFactory.getLogger(App.class);
 
     public App(String filePath) throws Exception {
 
         String[] tomcatDir = { getTomcatFolder() };
         String[] deployDir = { getDeployFolder() };
 
-        System.out.println("Tomcat: " + tomcatDir[0]);
-        System.out.println("Deploy: " + deployDir[0]);
+        LOG.info("Tomcat: {}", tomcatDir[0]);
+        LOG.info("Deploy: {}", deployDir[0]);
 
         final File file = new File(filePath);
         final String fileName = file.getName();
