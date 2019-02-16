@@ -24,7 +24,8 @@ import com.liferay.portal.util.*;
 import com.liferay.portal.xml.SAXReaderImpl;
 
 /**
- * Original file: https://github.com/liferay/liferay-portal/blob/master/portal-impl/src/com/liferay/portal/tools/ToolDependencies.java
+ * Original file:
+ * https://github.com/liferay/liferay-portal/blob/master/portal-impl/src/com/liferay/portal/tools/ToolDependencies.java
  */
 public class ToolDependencies {
 

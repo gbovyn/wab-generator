@@ -1,4 +1,7 @@
-package com.liferay.portal.osgi.web.wab.generator.internal.helper;
+package be.gfi.helper;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -7,14 +10,16 @@ public enum TimerHelper {
 
     timer;
 
-    private final LocalDateTime globalStart = LocalDateTime.now();
+    private static final Logger LOG = LoggerFactory.getLogger(TimerHelper.class);
+
+    private static final LocalDateTime GLOBAL_START = LocalDateTime.now();
 
     public void time(final String name) {
         this.time(name, () -> {});
     }
 
     public <E extends Exception> void time(final String name, final ThrowingRunnable<E> throwingRunnable) {
-        System.out.println("Processing " + name);
+        LOG.info("Processing {}", name);
         final LocalDateTime start = LocalDateTime.now();
 
         try {
@@ -26,9 +31,16 @@ public enum TimerHelper {
         final LocalDateTime end = LocalDateTime.now();
 
         final Duration intermediary = Duration.between(start, end);
-        final Duration total = Duration.between(globalStart, end);
+        final Duration total = Duration.between(GLOBAL_START, end);
 
-        System.out.println(String.format("Took %s (total: %s)", intermediary, total));
+        LOG.info("Took {} (total: {})", intermediary, total);
+    }
+
+    public void printTotal() {
+        final LocalDateTime now = LocalDateTime.now();
+        final Duration total = Duration.between(GLOBAL_START, now);
+
+        LOG.info("Total: {} minutes {} seconds", total.toMinutes(), total.getSeconds() % 60);
     }
 
     @FunctionalInterface

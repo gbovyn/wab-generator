@@ -26,21 +26,22 @@ import com.liferay.ant.bnd.jsp.JspAnalyzerPlugin;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.deploy.auto.context.AutoDeploymentContext;
-import com.liferay.portal.kernel.log.Log;
-import com.liferay.portal.kernel.log.LogFactoryUtil;
 import com.liferay.portal.kernel.plugin.PluginPackage;
 import com.liferay.portal.kernel.servlet.PortalClassLoaderFilter;
 import com.liferay.portal.kernel.servlet.PortalClassLoaderServlet;
 import com.liferay.portal.kernel.util.*;
 import com.liferay.portal.kernel.xml.*;
 import com.liferay.portal.osgi.web.wab.generator.internal.helper.DeployerHelper;
-import static com.liferay.portal.osgi.web.wab.generator.internal.helper.TimerHelper.timer;
+import static be.gfi.helper.TimerHelper.timer;
+
 import com.liferay.portal.tools.ToolDependencies;
 import com.liferay.portal.tools.deploy.BaseDeployer;
 import com.liferay.portal.util.PropsValues;
 import com.liferay.util.ant.DeleteTask;
 import com.liferay.whip.util.ReflectionUtil;
 import org.apache.commons.io.FilenameUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -60,7 +61,7 @@ import static com.liferay.portal.osgi.web.wab.generator.internal.processor.Const
  */
 public class WabProcessor {
 
-    private static final Log _log = LogFactoryUtil.getLog(WabProcessor.class);
+    private static final Logger logger = LoggerFactory.getLogger(WabProcessor.class);
 
     private static final String WEB_INF_WEB_XML = "WEB-INF/web.xml";
     private static final String WEB_INF_LIFERAY_WEB_XML = "WEB-INF/liferay-web.xml";
@@ -723,7 +724,6 @@ public class WabProcessor {
                 String[] portalListenerClassNames = StringUtil.split(paramValue, StringPool.COMMA);
 
                 for (String portalListenerClassName : portalListenerClassNames) {
-
                     processClass(analyzer, portalListenerClassName.trim());
                 }
             }
@@ -888,8 +888,7 @@ public class WabProcessor {
 
         plugins.add(
                 (VerifierPlugin) analyzer1 -> {
-                    Parameters requireCapabilities = analyzer1.parseHeader(
-                            analyzer1.getProperty(Constants.REQUIRE_CAPABILITY));
+                    Parameters requireCapabilities = analyzer1.parseHeader(analyzer1.getProperty(Constants.REQUIRE_CAPABILITY));
 
                     Map<String, Object> arguments = new HashMap<>();
 
@@ -938,7 +937,7 @@ public class WabProcessor {
         for (Node node : nodes) {
             String text = node.getText();
 
-            if (text.startsWith("/")) {
+            if (text.startsWith(StringPool.SLASH)) {
                 text = text.substring(1);
             }
 
@@ -1031,7 +1030,7 @@ public class WabProcessor {
 
             _importPackageParameters.add("com.liferay.portal.osgi.web.wab.generator", _optionalAttrs);
         } catch (Exception e) {
-            _log.error(e, e);
+            logger.error(e.getMessage(), e);
         }
     }
 
@@ -1065,15 +1064,15 @@ public class WabProcessor {
         String name = FilenameUtils.removeExtension(_file.getName()) + WAB_EXT;
 
         FileUtil.copyFile(file, new File(dir, name));
-        System.out.println("WAB created: " + new File(dir, name));
+        logger.info("WAB created: {}", new File(dir, name));
 
         String deployPath = MapUtil.getString(_parameters, DEPLOY_DIR);
         if (!deployPath.isEmpty()) {
-            System.out.println("Deploying to " + deployPath);
+            logger.info("Deploying to {}", deployPath);
             File deployDir = new File(deployPath, name);
             FileUtil.copyFile(file, deployDir);
         } else {
-            System.out.println("Deploy folder not configured - manual deploy required");
+            logger.warn("Deploy folder not configured - manual deploy required");
         }
     }
 }

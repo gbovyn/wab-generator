@@ -14,7 +14,8 @@ public class DeployerHelper {
 
     private static final String TOMCAT_DIR = "TOMCAT_DIR";
 
-    public static BaseDeployer getBaseDeployer(final File parentFile, final Map<String, String[]> parameters) throws Exception {
+    public static BaseDeployer getBaseDeployer(final File parentFile, final Map<String, String[]> parameters)
+            throws Exception {
         BaseDeployer baseDeployer = new PortletDeployer();
 
         baseDeployer.setBaseDir(parentFile.getAbsolutePath());
@@ -24,6 +25,7 @@ public class DeployerHelper {
 
         setTlds(baseDeployer, parameters);
         setJars(baseDeployer);
+
         return baseDeployer;
     }
 

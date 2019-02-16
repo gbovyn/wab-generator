@@ -10,9 +10,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
+import be.gfi.helper.TimerHelper;
 import org.apache.commons.io.FilenameUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class App {
+
+    private static final Logger LOG = LoggerFactory.getLogger(TimerHelper.class);
 
     public App(String filePath) throws Exception {
 
@@ -38,11 +43,12 @@ public class App {
     public static void main(String[] args) {
         try {
             String warPath = args[0];
-            System.out.println("WAR path: " + warPath);
+            LOG.info("WAR path: {}", warPath);
             new App(warPath);
-            System.out.println("Done");
+            TimerHelper.timer.printTotal();
+            LOG.info("Done");
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.error(e.getMessage(), e);
         }
     }
 
