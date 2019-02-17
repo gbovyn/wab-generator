@@ -18,10 +18,6 @@ public enum TimerHelper {
 
     private static final Map<String, LocalDateTime> durations = new HashMap<>();
 
-    public void time(final String name) {
-        this.time(name, () -> {});
-    }
-
     public <E extends Exception> void time(final String name, final ThrowingRunnable<E> throwingRunnable) {
         final LocalDateTime start = LocalDateTime.now();
 
@@ -36,7 +32,7 @@ public enum TimerHelper {
         final Duration intermediary = Duration.between(start, end);
         final Duration total = getTotal(end);
 
-        LOG.info("Processed '{}' (took {} on {})", name, intermediary, total);
+        printProcessed(name, intermediary, total);
     }
 
     public void start(final String name) {
@@ -47,14 +43,17 @@ public enum TimerHelper {
         final LocalDateTime start = durations.get(name);
         final LocalDateTime end = LocalDateTime.now();
         final Duration intermediary = Duration.between(start, end);
-
         final Duration total = getTotal(end);
 
-        LOG.info("Processed '{}' (took {} on {})", name, intermediary, total);
+        printProcessed(name, intermediary, total);
     }
 
     private Duration getTotal(final LocalDateTime end) {
         return Duration.between(GLOBAL_START, end);
+    }
+
+    private void printProcessed(final String name, final Duration intermediary, final Duration total) {
+        LOG.info("Processed '{}' in [{}] (took {} on {})", name, getLocation(), intermediary, total);
     }
 
     public void printTotal() {
@@ -62,6 +61,15 @@ public enum TimerHelper {
         final Duration total = getTotal(now);
 
         LOG.info("Total: {} minutes {} seconds", total.toMinutes(), total.getSeconds() % 60);
+    }
+
+    private String getLocation() {
+        final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+        final StackTraceElement element = stackTraceElements[4];
+        final String[] split = element.getClassName().split("\\.");
+        final String className = split[split.length - 1];
+
+        return String.format("%s.%s(...) - line: %s", className, element.getMethodName(), element.getLineNumber());
     }
 
     @FunctionalInterface

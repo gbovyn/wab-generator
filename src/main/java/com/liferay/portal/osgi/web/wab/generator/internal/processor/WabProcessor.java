@@ -61,7 +61,7 @@ import static com.liferay.portal.osgi.web.wab.generator.internal.processor.Const
  */
 public class WabProcessor {
 
-    private static final Logger logger = LoggerFactory.getLogger(WabProcessor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(WabProcessor.class);
 
     private static final String WEB_INF_WEB_XML = "WEB-INF/web.xml";
     private static final String WEB_INF_LIFERAY_WEB_XML = "WEB-INF/liferay-web.xml";
@@ -172,7 +172,7 @@ public class WabProcessor {
 
                 baseDeployer.deployFile(autoDeploymentContext);
             } catch (Exception e) {
-                e.printStackTrace();
+                LOG.error(e.getMessage(), e);
             }
         }
 
@@ -325,7 +325,7 @@ public class WabProcessor {
 
                 _bundleVersion = sb.toString();
             } else {
-                _bundleVersion = "0.0.0." + _bundleVersion.replace(".", "_");
+                _bundleVersion = "0.0.0." + _bundleVersion.replace(StringPool.PERIOD, StringPool.UNDERLINE);
             }
         }
 
@@ -405,8 +405,7 @@ public class WabProcessor {
             return;
         }
 
-        String exportPackage = pluginPackageProperties.getProperty(
-                Constants.EXPORT_PACKAGE);
+        String exportPackage = pluginPackageProperties.getProperty(Constants.EXPORT_PACKAGE);
 
         if (Validator.isNotNull(exportPackage)) {
             Parameters parameters = new Parameters(exportPackage);
@@ -416,8 +415,7 @@ public class WabProcessor {
             pluginPackageProperties.remove(Constants.EXPORT_PACKAGE);
         }
 
-        String importPackage = pluginPackageProperties.getProperty(
-                Constants.IMPORT_PACKAGE);
+        String importPackage = pluginPackageProperties.getProperty(Constants.IMPORT_PACKAGE);
 
         if (Validator.isNotNull(importPackage)) {
             Parameters parameters = new Parameters(importPackage);
@@ -1031,7 +1029,7 @@ public class WabProcessor {
 
             _importPackageParameters.add("com.liferay.portal.osgi.web.wab.generator", _optionalAttrs);
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            LOG.error(e.getMessage(), e);
         }
     }
 
@@ -1065,15 +1063,15 @@ public class WabProcessor {
         String name = FilenameUtils.removeExtension(_file.getName()) + WAB_EXT;
 
         FileUtil.copyFile(file, new File(dir, name));
-        logger.info("WAB created: {}", new File(dir, name));
+        LOG.info("WAB created: {}", new File(dir, name));
 
         String deployPath = MapUtil.getString(_parameters, DEPLOY_DIR);
         if (!deployPath.isEmpty()) {
-            logger.info("Deploying to {}", deployPath);
+            LOG.info("Deploying to {}", deployPath);
             File deployDir = new File(deployPath, name);
             FileUtil.copyFile(file, deployDir);
         } else {
-            logger.warn("Deploy folder not configured - manual deploy required");
+            LOG.warn("Deploy folder not configured - manual deploy required");
         }
     }
 }
