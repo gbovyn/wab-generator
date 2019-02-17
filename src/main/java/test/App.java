@@ -19,6 +19,8 @@ public class App {
 
     private static final Logger LOG = LoggerFactory.getLogger(App.class);
 
+    private static final String USERPROFILE = "USERPROFILE";
+
     public App(String filePath) throws Exception {
 
         String[] tomcatDir = { getTomcatFolder() };
@@ -35,7 +37,7 @@ public class App {
         parameters.put("Bundle-SymbolicName", new String[] { bundleSymbolicName });
         parameters.put("Web-ContextPath", new String[] { StringPool.SLASH + bundleSymbolicName });
         parameters.put("TOMCAT_DIR", tomcatDir);
-        parameters.put("DEPLOY_FOLDER", deployDir);
+        parameters.put("DEPLOY_DIR", deployDir);
 
         new WabGenerator().generate(null, file, parameters);
     }
@@ -80,7 +82,7 @@ public class App {
     }
 
     private String getPropertyFromGradleProperties(String property) throws IOException {
-        String gradlePropertiesPath = System.getenv("USERPROFILE") + "/.gradle/gradle.properties";
+        String gradlePropertiesPath = System.getenv(USERPROFILE) + "/.gradle/gradle.properties";
         Properties properties = getProperties(gradlePropertiesPath);
 
         return properties.getProperty(property);
