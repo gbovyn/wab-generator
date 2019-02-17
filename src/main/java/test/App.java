@@ -12,6 +12,7 @@ import java.util.Properties;
 
 import be.gfi.helper.TimerHelper;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +40,7 @@ public class App {
         parameters.put("TOMCAT_DIR", tomcatDir);
         parameters.put("DEPLOY_DIR", deployDir);
 
-        new WabGenerator().generate(null, file, parameters);
+        new WabGenerator().generate(App.class.getClassLoader(), file, parameters);
     }
 
     public static void main(String[] args) {
@@ -63,29 +64,37 @@ public class App {
     }
 
     private String getProperty(final String tomcatFolder) throws IOException {
-        String deployFolder = getPropertyFromDowabProperties(tomcatFolder);
+        String property = getPropertyFromDowabProperties(tomcatFolder);
 
-        if (deployFolder != null) {
-            return deployFolder;
+        if (property.isEmpty()) {
+            property = getPropertyFromGradleProperties(tomcatFolder);
+        } else {
+            property = StringUtils.EMPTY;
         }
 
-        deployFolder = getPropertyFromGradleProperties(tomcatFolder);
-
-        return deployFolder;
+        return property;
     }
 
     private String getPropertyFromDowabProperties(String property) throws IOException {
         String dowabConfigPath = "dowab.properties";
-        Properties properties = getProperties(dowabConfigPath);
+        if (new File(dowabConfigPath).exists()) {
+            Properties properties = getProperties(dowabConfigPath);
 
-        return properties.getProperty(property);
+            return properties.getProperty(property);
+        }
+
+        return StringUtils.EMPTY;
     }
 
     private String getPropertyFromGradleProperties(String property) throws IOException {
         String gradlePropertiesPath = System.getenv(USERPROFILE) + "/.gradle/gradle.properties";
-        Properties properties = getProperties(gradlePropertiesPath);
+        if (new File(gradlePropertiesPath).exists()) {
+            Properties properties = getProperties(gradlePropertiesPath);
 
-        return properties.getProperty(property);
+            return properties.getProperty(property);
+        }
+
+        return StringUtils.EMPTY;
     }
 
     private Properties getProperties(final String path) throws IOException {

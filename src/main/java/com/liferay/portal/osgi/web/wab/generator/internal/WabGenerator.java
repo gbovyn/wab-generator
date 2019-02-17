@@ -15,6 +15,7 @@
 package com.liferay.portal.osgi.web.wab.generator.internal;
 
 import com.liferay.portal.osgi.web.wab.generator.internal.processor.WabProcessor;
+import org.apache.commons.lang.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +33,6 @@ public class WabGenerator implements com.liferay.portal.osgi.web.wab.generator.W
 
         WabProcessor wabProcessor = new WabProcessor(file, parameters);
 
-        return wabProcessor.getProcessedFile();
+        return wabProcessor.getProcessedFile().orElse(new File(StringUtils.EMPTY));
     }
 }

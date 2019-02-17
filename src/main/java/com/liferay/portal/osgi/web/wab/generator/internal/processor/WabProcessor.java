@@ -32,7 +32,6 @@ import com.liferay.portal.kernel.servlet.PortalClassLoaderServlet;
 import com.liferay.portal.kernel.util.*;
 import com.liferay.portal.kernel.xml.*;
 import com.liferay.portal.osgi.web.wab.generator.internal.helper.DeployerHelper;
-import static be.gfi.helper.TimerHelper.timer;
 
 import com.liferay.portal.tools.ToolDependencies;
 import com.liferay.portal.tools.deploy.BaseDeployer;
@@ -53,6 +52,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.stream.Stream;
 
+import static be.gfi.helper.TimerHelper.timer;
 import static com.liferay.portal.osgi.web.wab.generator.internal.processor.Constants.*;
 
 /**
@@ -109,7 +109,7 @@ public class WabProcessor {
     private String _bundleVersion;
     private String _context;
     private File _pluginDir;
-    private PluginPackage _pluginPackage;
+    private Optional<PluginPackage> _pluginPackage;
     private String _servicePackageName;
 
     public WabProcessor(File file, Map<String, String[]> parameters) {
@@ -119,11 +119,11 @@ public class WabProcessor {
         _parameters = parameters;
     }
 
-    public File getProcessedFile() throws IOException {
+    public Optional<File> getProcessedFile() throws IOException {
         _pluginDir = autoDeploy();
 
-        if ((_pluginDir == null) || !_pluginDir.exists() || !_pluginDir.isDirectory()) {
-            return null;
+        if (!_pluginDir.exists() || !_pluginDir.isDirectory()) {
+            return Optional.empty();
         }
 
         File outputFile = null;
@@ -138,7 +138,7 @@ public class WabProcessor {
 
         writeGeneratedWab(outputFile);
 
-        return outputFile;
+        return Optional.ofNullable(outputFile);
     }
 
     private File autoDeploy() {
@@ -146,13 +146,9 @@ public class WabProcessor {
 
         AutoDeploymentContext autoDeploymentContext = buildAutoDeploymentContext(webContextpath);
 
-        _pluginPackage = autoDeploymentContext.getPluginPackage();
+        _pluginPackage = Optional.ofNullable(autoDeploymentContext.getPluginPackage());
 
-        if (_pluginPackage != null) {
-            _context = _pluginPackage.getContext();
-        } else {
-            _context = autoDeploymentContext.getContext();
-        }
+        _context = _pluginPackage.map(PluginPackage::getContext).orElse(autoDeploymentContext.getContext());
 
         File deployDir = autoDeploymentContext.getDeployDir();
 
@@ -231,7 +227,7 @@ public class WabProcessor {
             final Properties pluginPackageProperties = getPluginPackageProperties();
 
             timer.time("processBundleVersion", () -> processBundleVersion(analyzer));
-            timer.time("processBundleClasspath", () -> processBundleClasspath(analyzer, pluginPackageProperties));
+            timer.time("processBundleClasspath", () -> processBundleClasspath(analyzer));
             timer.time("processBundleSymbolicName", () -> processBundleSymbolicName(analyzer));
             timer.time("processExtraHeaders", () -> processExtraHeaders(analyzer));
             timer.time("processPluginPackagePropertiesExportImportPackages", () ->
@@ -299,40 +295,37 @@ public class WabProcessor {
         _bundleVersion = MapUtil.getString(_parameters, Constants.BUNDLE_VERSION);
 
         if (Validator.isNull(_bundleVersion)) {
-            if (_pluginPackage != null) {
-                _bundleVersion = _pluginPackage.getVersion();
-            } else {
-                _bundleVersion = "1.0.0";
-            }
+            _bundleVersion = _pluginPackage.map(PluginPackage::getVersion).orElse("1.0.0");
         }
 
         if (!Version.isVersion(_bundleVersion)) {
-
-            // Convert from the Maven format to the OSGi format
-
-            Matcher matcher = _versionMavenPattern.matcher(_bundleVersion);
-
-            if (matcher.matches()) {
-                StringBuilder sb = new StringBuilder();
-
-                sb.append(matcher.group(1));
-                sb.append(".");
-                sb.append(matcher.group(3));
-                sb.append(".");
-                sb.append(matcher.group(5));
-                sb.append(".");
-                sb.append(matcher.group(7));
-
-                _bundleVersion = sb.toString();
-            } else {
-                _bundleVersion = "0.0.0." + _bundleVersion.replace(StringPool.PERIOD, StringPool.UNDERLINE);
-            }
+            convertFromMavenToOSGiFormat();
         }
 
         analyzer.setProperty(Constants.BUNDLE_VERSION, _bundleVersion);
     }
 
-    private void processBundleClasspath(Analyzer analyzer, Properties pluginPackageProperties) throws IOException {
+    private void convertFromMavenToOSGiFormat() {
+        Matcher matcher = _versionMavenPattern.matcher(_bundleVersion);
+
+        if (matcher.matches()) {
+            StringBuilder sb = new StringBuilder();
+
+            sb.append(matcher.group(1));
+            sb.append(".");
+            sb.append(matcher.group(3));
+            sb.append(".");
+            sb.append(matcher.group(5));
+            sb.append(".");
+            sb.append(matcher.group(7));
+
+            _bundleVersion = sb.toString();
+        } else {
+            _bundleVersion = "0.0.0." + _bundleVersion.replace(StringPool.PERIOD, StringPool.UNDERLINE);
+        }
+    }
+
+    private void processBundleClasspath(Analyzer analyzer) throws IOException {
 
         appendProperty(analyzer, Constants.BUNDLE_CLASSPATH, EXT_WEB_INF_CLASSES);
 
@@ -795,11 +788,8 @@ public class WabProcessor {
     }
 
     private void processRequiredDeploymentContexts(Analyzer analyzer) {
-        if (_pluginPackage == null) {
-            return;
-        }
-
-        List<String> requiredDeploymentContexts = _pluginPackage.getRequiredDeploymentContexts();
+        List<String> requiredDeploymentContexts = _pluginPackage.map(PluginPackage::getRequiredDeploymentContexts)
+                .orElse(Collections.emptyList());
 
         if (ListUtil.isEmpty(requiredDeploymentContexts)) {
             return;
@@ -887,7 +877,8 @@ public class WabProcessor {
 
         plugins.add(
                 (VerifierPlugin) analyzer1 -> {
-                    Parameters requireCapabilities = analyzer1.parseHeader(analyzer1.getProperty(Constants.REQUIRE_CAPABILITY));
+                    final String requireCapabilityProperty = analyzer1.getProperty(Constants.REQUIRE_CAPABILITY);
+                    Parameters requireCapabilities = analyzer1.parseHeader(requireCapabilityProperty);
 
                     Map<String, Object> arguments = new HashMap<>();
 
